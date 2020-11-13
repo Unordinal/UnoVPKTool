@@ -1,5 +1,5 @@
 # UnoVPKTool
-WIP. A tool for working with Apex Legends VPK files.
+WIP. A tool for working with Apex Legends VPK files. Currently, it can read all of the file names from a VPK directory file and nothing more.
 
 ### Compiling
 The WPF app is currently a non-thing.
