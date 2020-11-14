@@ -1,19 +1,20 @@
-﻿using System.Diagnostics;
+﻿using System.Collections.Generic;
 using System.IO;
 using UnoVPKTool.Extensions;
 
 namespace UnoVPKTool.VPK
 {
     // Instance Methods
-    public class Tree
+    public class Tree : IBinaryWritable
     {
         /// <summary>
         /// The root node of the tree. Contains file extensions.
         /// </summary>
         public ITreeNode RootNode { get; set; }
 
-        public Tree(BinaryReader reader)
+        public Tree(BinaryReader reader, out IList<DirectoryEntryBlock> entryBlocks)
         {
+            entryBlocks = new List<DirectoryEntryBlock>();
             RootNode = new TreeNode("root");
 
             string extension;
@@ -30,13 +31,21 @@ namespace UnoVPKTool.VPK
                     while (!string.IsNullOrEmpty(filename = reader.ReadNullTermString()))
                     {
                         string fullFilePath = Path.Combine(path.Trim(), filename + "." + extension).Replace('/', Path.DirectorySeparatorChar);
-                        var entryBlock = new EntryBlock(reader) { FilePath = fullFilePath };
+                        var entryBlock = new DirectoryEntryBlock(reader) { FilePath = fullFilePath };
                         ITreeNode fileNode = new TreeNode(filename, entryBlock, pathNode);
 
+                        entryBlocks.Add(entryBlock);
                         //Debug.WriteLine(filename);
                     }
                 }
             }
+        }
+
+        public Tree(BinaryReader reader) : this(reader, out _) { }
+
+        public void Write(BinaryWriter writer)
+        {
+            throw new System.NotImplementedException();
         }
     }
 }

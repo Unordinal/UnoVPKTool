@@ -14,7 +14,7 @@ namespace UnoVPKTool.VPK
 
         public string Header { get; set; }
 
-        public EntryBlock? EntryBlock { get; set; }
+        public DirectoryEntryBlock? EntryBlock { get; set; }
 
         public ITreeNode? Parent
         {
@@ -40,7 +40,7 @@ namespace UnoVPKTool.VPK
             }
         }
 
-        public TreeNode(string header, EntryBlock? entryBlock = null, ITreeNode? parent = null, IDictionary<string, ITreeNode>? children = null)
+        public TreeNode(string header, DirectoryEntryBlock? entryBlock = null, ITreeNode? parent = null, IDictionary<string, ITreeNode>? children = null)
         {
             Header = header;
             EntryBlock = entryBlock;

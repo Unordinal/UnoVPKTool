@@ -1,0 +1,33 @@
+﻿using System;
+using LzhamWrapper.Decompression;
+
+namespace UnoVPKTool
+{
+    public static class Lzham
+    {
+        public static byte[] DecompressMemory(byte[] compressedBytes, ulong uncompressedSize)
+        {
+            UIntPtr compressedLength = new UIntPtr((uint)compressedBytes.Length);
+
+            byte[] decompressedBytes = new byte[uncompressedSize];
+            UIntPtr decompressedLength = new UIntPtr(uncompressedSize);
+
+            uint adler32 = 0;
+
+            var parameters = new DecompressionParameters { DictionarySize = 20 };
+            parameters.Initialize();
+
+            var result = LzhamWrapper.Lzham.DecompressMemory(parameters, compressedBytes, ref compressedLength, 0, decompressedBytes, ref decompressedLength, 0, ref adler32);
+            if (result != DecompressStatus.Success)
+            {
+                throw new Exception("Lzham.DecompressMemory failed. Status: " + result.ToString());
+            }
+            if (decompressedLength.ToUInt64() != uncompressedSize)
+            {
+                throw new Exception($"Wrong output size: {decompressedLength} vs {uncompressedSize}");
+            }
+
+            return decompressedBytes;
+        }
+    }
+}

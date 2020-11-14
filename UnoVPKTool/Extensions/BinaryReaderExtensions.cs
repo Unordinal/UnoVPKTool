@@ -33,6 +33,16 @@ namespace UnoVPKTool.Extensions
         }
 
         /// <summary>
+        /// Reads a <see cref="Tree"/> from the underlying stream and returns the list of entry blocks.
+        /// </summary>
+        /// <param name="reader"></param>
+        /// <returns></returns>
+        public static Tree ReadTree(this BinaryReader reader, out IList<DirectoryEntryBlock> entryBlocks)
+        {
+            return new Tree(reader, out entryBlocks);
+        }
+        
+        /// <summary>
         /// Reads a <see cref="Tree"/> from the underlying stream.
         /// </summary>
         /// <param name="reader"></param>
@@ -43,27 +53,27 @@ namespace UnoVPKTool.Extensions
         }
 
         /// <summary>
-        /// Reads an <see cref="Entry"/> from the underlying stream.
+        /// Reads an <see cref="DirectoryEntry"/> from the underlying stream.
         /// </summary>
         /// <param name="reader"></param>
         /// <returns></returns>
-        public static Entry ReadEntry(this BinaryReader reader)
+        public static DirectoryEntry ReadEntry(this BinaryReader reader)
         {
-            return new Entry(reader);
+            return new DirectoryEntry(reader);
         }
 
         /// <summary>
-        /// Reads a sequence of entries from the underlying stream until an <see cref="EntryBlock.Terminator"/> is reached.
+        /// Reads a sequence of entries from the underlying stream until an <see cref="DirectoryEntryBlock.Terminator"/> is reached.
         /// </summary>
         /// <param name="reader">The reader to use.</param>
         /// <returns></returns>
-        public static IEnumerable<Entry> ReadEntries(this BinaryReader reader)
+        public static IEnumerable<DirectoryEntry> ReadEntries(this BinaryReader reader)
         {
             do
             {
                 yield return reader.ReadEntry();
             }
-            while (reader.ReadUInt16() != EntryBlock.Terminator);
+            while (reader.ReadUInt16() != DirectoryEntryBlock.Terminator);
         }
     }
 }

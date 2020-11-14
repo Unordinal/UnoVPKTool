@@ -6,9 +6,9 @@ using UnoVPKTool.Extensions;
 namespace UnoVPKTool.VPK
 {
     /// <summary>
-    /// Represents a block of entries in a VPK directory file.
+    /// Represents a block of entries in a VPK directory file. If the <see cref="DirectoryEntryBlock"/> contains multiple entries, they all point to one file. It's unknown as to why this is just yet.
     /// </summary>
-    public class EntryBlock : IBinaryWritable
+    public class DirectoryEntryBlock : IBinaryWritable
     {
         /// <summary>
         /// Marks the end of a block of entries.
@@ -33,7 +33,7 @@ namespace UnoVPKTool.VPK
         /// <summary>
         /// The entries contained within this block.
         /// </summary>
-        public IList<Entry> Entries { get; set; }
+        public IList<DirectoryEntry> Entries { get; set; }
 
         /// <summary>
         /// The complete path of this file, ex: resource/localization/base_english.txt
@@ -41,10 +41,36 @@ namespace UnoVPKTool.VPK
         public string? FilePath { get; set; }
 
         /// <summary>
+        /// Gets the total uncompressed size of this block by adding the uncompressed size of all entries.
+        /// </summary>
+        public ulong TotalUncompressedSize
+        {
+            get
+            {
+                ulong sum = 0; // I could use .Sum() and cast to long and then back to ulong...
+                foreach (var entry in Entries) sum += entry.UncompressedSize;
+                return sum;
+            }
+        }
+        
+        /// <summary>
+        /// Gets the total compressed size of this block by adding the compressed size of all entries.
+        /// </summary>
+        public ulong TotalCompressedSize
+        {
+            get
+            {
+                ulong sum = 0; // I could use .Sum() and cast to long and then back to ulong...
+                foreach (var entry in Entries) sum += entry.CompressedSize;
+                return sum;
+            }
+        }
+
+        /// <summary>
         /// Initializes a new block of entries using the given <see cref="BinaryReader"/>.
         /// </summary>
         /// <param name="reader">The reader to use.</param>
-        public EntryBlock(BinaryReader reader)
+        public DirectoryEntryBlock(BinaryReader reader)
         {
             CRC = reader.ReadUInt32();
             PreloadBytes = reader.ReadUInt16();
@@ -72,6 +98,7 @@ namespace UnoVPKTool.VPK
         public override string ToString()
         {
             return
+                $"{nameof(FilePath)}: {FilePath}\n" +
                 $"{nameof(CRC)}: 0x{CRC:X4}\n" +
                 $"{nameof(PreloadBytes)}: {PreloadBytes}\n" +
                 $"{nameof(ArchiveIndex)}: {ArchiveIndex}\n" +

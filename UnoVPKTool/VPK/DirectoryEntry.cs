@@ -3,9 +3,9 @@
 namespace UnoVPKTool.VPK
 {
     /// <summary>
-    /// Represents an entry in a VPK directory file.
+    /// Represents an entry in a VPK directory file. This contains information about the file stored in the VPK archive, such as the offset and size of the data.
     /// </summary>
-    public class Entry : IBinaryWritable
+    public class DirectoryEntry : IBinaryWritable
     {
         /// <summary>
         /// The size of an entry, in bytes.
@@ -20,7 +20,7 @@ namespace UnoVPKTool.VPK
         public uint DataID { get; set; }
 
         /// <summary>
-        /// Unknown. Flags? Known values: 0, 16
+        /// Unknown. Flags? Known values: 0, 16(is there a 16?)
         /// </summary>
         public ushort Unknown1 { get; set; }
 
@@ -40,10 +40,15 @@ namespace UnoVPKTool.VPK
         public ulong UncompressedSize { get; set; }
 
         /// <summary>
+        /// Gets whether the data this entry points to is compressed.
+        /// </summary>
+        public bool IsCompressed => CompressedSize != UncompressedSize;
+
+        /// <summary>
         /// Initializes a new entry using a <see cref="BinaryReader"/>.
         /// </summary>
         /// <param name="reader">The reader to read values from.</param>
-        public Entry(BinaryReader reader)
+        public DirectoryEntry(BinaryReader reader)
         {
             DataID = reader.ReadUInt32();
             Unknown1 = reader.ReadUInt16();

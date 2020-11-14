@@ -7,9 +7,9 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "UnoVPKTool", "UnoVPKTool\Un
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "UnoVPKTool.Tests", "UnoVPKTool.Tests\UnoVPKTool.Tests.csproj", "{014CA4C8-E2E2-4B90-A100-A440396E04A1}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UnoVPKTool.WPF", "UnoVPKTool.WPF\UnoVPKTool.WPF.csproj", "{C4028138-032B-485D-BC1E-FBBB5A1DBD91}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "UnoVPKTool.WPF", "UnoVPKTool.WPF\UnoVPKTool.WPF.csproj", "{C4028138-032B-485D-BC1E-FBBB5A1DBD91}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "XCompression", "XCompression\XCompression.csproj", "{B420E34D-76D8-4D32-9A17-DB914ED9AD1C}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "LzhamWrapper", "LzhamWrapper\LzhamWrapper.csproj", "{5C0719CC-8C05-4D94-815B-8DB6E12AA96C}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -29,10 +29,10 @@ Global
 		{C4028138-032B-485D-BC1E-FBBB5A1DBD91}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C4028138-032B-485D-BC1E-FBBB5A1DBD91}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{C4028138-032B-485D-BC1E-FBBB5A1DBD91}.Release|Any CPU.Build.0 = Release|Any CPU
-		{B420E34D-76D8-4D32-9A17-DB914ED9AD1C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{B420E34D-76D8-4D32-9A17-DB914ED9AD1C}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{B420E34D-76D8-4D32-9A17-DB914ED9AD1C}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{B420E34D-76D8-4D32-9A17-DB914ED9AD1C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5C0719CC-8C05-4D94-815B-8DB6E12AA96C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5C0719CC-8C05-4D94-815B-8DB6E12AA96C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5C0719CC-8C05-4D94-815B-8DB6E12AA96C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5C0719CC-8C05-4D94-815B-8DB6E12AA96C}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

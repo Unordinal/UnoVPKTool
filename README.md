@@ -9,5 +9,5 @@ Compiles for .NET 5.0.
 For the [Tests](UnoVPKTool.Tests), a folder named `TestFiles` is required in its directory, with at least `englishclient_frontend.bsp.pak000_dir.vpk` available in it. A few offsets in the test file are hardcoded at the moment, so if the game updates they may stop working.
 
 ### Libraries
-.NET version of XCompression by Gibbed: https://github.com/gibbed/XCompression
-- [License information](XCompression/LICENSE.txt)
+Uses a modified version of [Lzham.Net](https://github.com/AndrewSav/Lzham.Net) by AndrewSav.
+- [MIT License](LzhamWrapper/License.txt)

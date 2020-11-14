@@ -13,9 +13,9 @@ namespace UnoVPKTool.VPK
         public string Header { get; set; }
 
         /// <summary>
-        /// The <see cref="VPK.EntryBlock"/> this node contains.
+        /// The <see cref="VPK.DirectoryEntryBlock"/> this node contains.
         /// </summary>
-        public EntryBlock? EntryBlock { get; set; }
+        public DirectoryEntryBlock? EntryBlock { get; set; }
 
         /// <summary>
         /// The parent of this node.
