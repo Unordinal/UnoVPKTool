@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Text;
 using UnoVPKTool.VPK;
@@ -26,7 +27,6 @@ namespace UnoVPKTool.Extensions
             }
             catch (Exception)
             {
-
             }
 
             return sb.ToString();
@@ -41,7 +41,7 @@ namespace UnoVPKTool.Extensions
         {
             return new Tree(reader, out entryBlocks);
         }
-        
+
         /// <summary>
         /// Reads a <see cref="Tree"/> from the underlying stream.
         /// </summary>
@@ -52,14 +52,20 @@ namespace UnoVPKTool.Extensions
             return new Tree(reader);
         }
 
-        /// <summary>
-        /// Reads an <see cref="DirectoryEntry"/> from the underlying stream.
-        /// </summary>
-        /// <param name="reader"></param>
-        /// <returns></returns>
-        public static DirectoryEntry ReadEntry(this BinaryReader reader)
+        public static IEnumerable<DirectoryEntryBlock> ReadEntryBlocks(this BinaryReader reader)
         {
-            return new DirectoryEntry(reader);
+            string extension, path, name;
+            while (!string.IsNullOrEmpty(extension = reader.ReadNullTermString()))
+            {
+                while (!string.IsNullOrEmpty(path = reader.ReadNullTermString()))
+                {
+                    while (!string.IsNullOrEmpty(name = reader.ReadNullTermString()))
+                    {
+                        var fullPath = Utils.GetFilePathFromVPKParts(extension, path, name);
+                        yield return new DirectoryEntryBlock(reader, fullPath);
+                    }
+                }
+            }
         }
 
         /// <summary>
@@ -71,7 +77,7 @@ namespace UnoVPKTool.Extensions
         {
             do
             {
-                yield return reader.ReadEntry();
+                yield return new DirectoryEntry(reader);
             }
             while (reader.ReadUInt16() != DirectoryEntryBlock.Terminator);
         }

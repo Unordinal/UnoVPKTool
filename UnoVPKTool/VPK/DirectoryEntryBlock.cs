@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using UnoVPKTool.Extensions;
@@ -6,7 +7,7 @@ using UnoVPKTool.Extensions;
 namespace UnoVPKTool.VPK
 {
     /// <summary>
-    /// Represents a block of entries in a VPK directory file. If the <see cref="DirectoryEntryBlock"/> contains multiple entries, they all point to one file. It's unknown as to why this is just yet.
+    /// Represents a block of entries in a VPK directory file AND to a single file that resides in a VPK archive.
     /// </summary>
     public class DirectoryEntryBlock : IBinaryWritable
     {
@@ -26,7 +27,7 @@ namespace UnoVPKTool.VPK
         public ushort PreloadBytes { get; set; }
 
         /// <summary>
-        /// A zero-based index of the archive this entry's data is contained in. If 0x7FFF, the data follows the directory.
+        /// A zero-based index of the archive this entry's data is contained in.
         /// </summary>
         public ushort ArchiveIndex { get; set; }
 
@@ -36,9 +37,9 @@ namespace UnoVPKTool.VPK
         public IList<DirectoryEntry> Entries { get; set; }
 
         /// <summary>
-        /// The complete path of this file, ex: resource/localization/base_english.txt
+        /// The path of this file in the VPK archive. (ex: <c>resource\localization\base_english.txt</c>)
         /// </summary>
-        public string? FilePath { get; set; }
+        public string FilePath { get; set; }
 
         /// <summary>
         /// Gets the total uncompressed size of this block by adding the uncompressed size of all entries.
@@ -67,11 +68,13 @@ namespace UnoVPKTool.VPK
         }
 
         /// <summary>
-        /// Initializes a new block of entries using the given <see cref="BinaryReader"/>.
+        /// Initializes a new block of entries using the given <see cref="BinaryReader"/> and paths.
         /// </summary>
         /// <param name="reader">The reader to use.</param>
-        public DirectoryEntryBlock(BinaryReader reader)
+        /// <param name="filePath">The path of this file in the VPK archive. (ex: <c>resource/localization/base_english.txt</c>)</param>
+        public DirectoryEntryBlock(BinaryReader reader, string filePath)
         {
+            FilePath = filePath;
             CRC = reader.ReadUInt32();
             PreloadBytes = reader.ReadUInt16();
             ArchiveIndex = reader.ReadUInt16();

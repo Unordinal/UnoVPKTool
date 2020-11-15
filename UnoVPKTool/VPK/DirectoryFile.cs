@@ -1,25 +1,18 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using UnoVPKTool.Exceptions;
 using UnoVPKTool.Extensions;
 
 namespace UnoVPKTool.VPK
 {
+    // Instance Members
     /// <summary>
     /// Represents a VPK directory file.
     /// </summary>
-    public class DirectoryFile : IBinaryWritable
+    public partial class DirectoryFile : IBinaryWritable
     {
-        /// <summary>
-        /// The signature (magic number) for VPK directory files.
-        /// </summary>
-        public const uint ExpectedMagic = 0x55AA1234;
-        /// <summary>
-        /// The supported VPK versions. Currently contains only v2.3.
-        /// </summary>
-        public static readonly Version[] SupportedVersions = { new Version(2, 3) };
-
         /// <summary>
         /// The signature of this VPK file. Should equal <see cref="ExpectedMagic"/>.
         /// </summary>
@@ -43,14 +36,9 @@ namespace UnoVPKTool.VPK
         public uint FileDataSectionSize { get; set; }
 
         /// <summary>
-        /// The directory tree of the VPK file. It is three levels deep, starting at the root node within the tree:
-        /// <list type="number">
-        ///     <item>Extensions.</item>
-        ///     <item>Paths.</item>
-        ///     <item>File names.</item>
-        /// </list>
+        /// The absolute path to this VPK directory file.
         /// </summary>
-        public Tree Tree { get; }
+        public string FilePath { get; }
 
         /// <summary>
         /// The entry blocks contained within this file.
@@ -58,12 +46,18 @@ namespace UnoVPKTool.VPK
         public IList<DirectoryEntryBlock> EntryBlocks { get; }
 
         /// <summary>
-        /// Initializes a new VPK file from the given <see cref="BinaryReader"/>.
+        /// Creates a new <see cref="DirectoryFile"/> from the given path to a VPK directory file.
         /// </summary>
-        /// <param name="reader"></param>
+        /// <param name="path">The path to a VPK directory file.</param>
         /// <exception cref="InvalidDataException"/>
-        public DirectoryFile(BinaryReader reader)
+        public DirectoryFile(string path)
         {
+            if (!Path.IsPathFullyQualified(path)) path = Path.GetFullPath(path);
+            FilePath = path;
+
+            using var fileStream = File.OpenRead(path);
+            using var reader = new BinaryReader(fileStream);
+
             Magic = reader.ReadUInt32();
             if (Magic != ExpectedMagic) throw new InvalidVPKFileException($"Incorrect magic: got '0x{Magic:X4}', expected '0x{ExpectedMagic:X4}'");
 
@@ -74,15 +68,13 @@ namespace UnoVPKTool.VPK
 
             TreeSize = reader.ReadUInt32();
             FileDataSectionSize = reader.ReadUInt32();
-            Tree = reader.ReadTree(out var entryBlocks);
-            EntryBlocks = entryBlocks;
+            EntryBlocks = reader.ReadEntryBlocks().ToList();
         }
 
-        // Untested, still unimplemented for Tree.
         public void Write(BinaryWriter writer)
         {
             throw new NotImplementedException();
-            writer.Write(Magic);
+            /*writer.Write(Magic);
             writer.Write((ushort)Version.Major);
             writer.Write((ushort)Version.Minor);
 
@@ -107,29 +99,34 @@ namespace UnoVPKTool.VPK
             FileDataSectionSize = fileData;
 
             writer.Write(FileDataSectionSize);
-            writer.Write(treeBytes);
+            writer.Write(treeBytes);*/
         }
-
-        /// <summary>
-        /// Retrieves data in an archive from the specified offset.
-        /// </summary>
-        /// <param name="offset">The offset in the archive.</param>
-        /// <param name="count">The number of bytes to read.</param>
-        /// <returns></returns>
-        /*public byte[] GetDataAtOffset(ulong offset, ulong count)
-        {
-
-        }*/
 
         public override string ToString()
         {
             return
+                $"[{nameof(DirectoryFile)}]\n" +
+                $"{nameof(FilePath)}: {FilePath}\n" +
                 $"{nameof(Magic)}: 0x{Magic:X4}\n" +
                 $"{nameof(Version)}: {Version}\n" +
                 $"{nameof(TreeSize)}: {TreeSize}\n" +
                 $"{nameof(FileDataSectionSize)}: {FileDataSectionSize}";
         }
-        
+    }
+
+    // Static Members
+    public partial class DirectoryFile
+    {
+        /// <summary>
+        /// The signature (magic number) for VPK directory files.
+        /// </summary>
+        public const uint ExpectedMagic = 0x55AA1234;
+
+        /// <summary>
+        /// The supported VPK versions. Currently contains only v2.3.
+        /// </summary>
+        public static readonly Version[] SupportedVersions = { new Version(2, 3) };
+
         /// <summary>
         /// Checks if the given VPK version is supported.
         /// </summary>

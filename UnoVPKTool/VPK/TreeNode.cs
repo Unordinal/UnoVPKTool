@@ -104,7 +104,7 @@ namespace UnoVPKTool.VPK
             string output =
                 $"[{Header}]: (Parent: {Parent?.Header ?? "<none>"}, Children: {Children.Count})";
 
-            if (EntryBlock is not null) output += "\nEntry:\n" + Utils.IndentString(EntryBlock.ToString()!);
+            //if (EntryBlock is not null) output += "\nEntry:\n" + Utils.IndentString(EntryBlock.ToString()!);
 
             return output;
         }

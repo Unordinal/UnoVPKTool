@@ -8,7 +8,7 @@ namespace UnoVPKTool.VPK
     public class DirectoryEntry : IBinaryWritable
     {
         /// <summary>
-        /// The size of an entry, in bytes.
+        /// The size of a <see cref="DirectoryEntry"/>, in bytes.
         /// </summary>
         public const int ConstSize = 30;
 
@@ -45,9 +45,9 @@ namespace UnoVPKTool.VPK
         public bool IsCompressed => CompressedSize != UncompressedSize;
 
         /// <summary>
-        /// Initializes a new entry using a <see cref="BinaryReader"/>.
+        /// Creates a new <see cref="DirectoryEntry"/>.
         /// </summary>
-        /// <param name="reader">The reader to read values from.</param>
+        /// <param name="archivePath">The path of the archive the data of this entry resides in.</param>
         public DirectoryEntry(BinaryReader reader)
         {
             DataID = reader.ReadUInt32();
@@ -69,6 +69,7 @@ namespace UnoVPKTool.VPK
         public override string ToString()
         {
             return
+                $"[{nameof(DirectoryEntry)}]\n" +
                 $"{nameof(DataID)}: {DataID}\n" +
                 $"{nameof(Unknown1)}: {Unknown1}\n" +
                 $"{nameof(Offset)}: {Offset}\n" +

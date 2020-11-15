@@ -17,25 +17,22 @@ namespace UnoVPKTool.VPK
             entryBlocks = new List<DirectoryEntryBlock>();
             RootNode = new TreeNode("root");
 
-            string extension;
+            string extension, path, name;
             while (!string.IsNullOrEmpty(extension = reader.ReadNullTermString()))
             {
                 ITreeNode extNode = new TreeNode(extension, null, RootNode);
 
-                string path;
                 while (!string.IsNullOrEmpty(path = reader.ReadNullTermString()))
                 {
                     ITreeNode pathNode = new TreeNode(path, null, extNode);
 
-                    string filename;
-                    while (!string.IsNullOrEmpty(filename = reader.ReadNullTermString()))
+                    while (!string.IsNullOrEmpty(name = reader.ReadNullTermString()))
                     {
-                        string fullFilePath = Path.Combine(path.Trim(), filename + "." + extension).Replace('/', Path.DirectorySeparatorChar);
-                        var entryBlock = new DirectoryEntryBlock(reader) { FilePath = fullFilePath };
-                        ITreeNode fileNode = new TreeNode(filename, entryBlock, pathNode);
+                        string fullFilePath = Utils.GetFilePathFromVPKParts(extension, path, name);
+                        var entryBlock = new DirectoryEntryBlock(reader, fullFilePath);
+                        ITreeNode fileNode = new TreeNode(name, entryBlock, pathNode);
 
                         entryBlocks.Add(entryBlock);
-                        //Debug.WriteLine(filename);
                     }
                 }
             }
