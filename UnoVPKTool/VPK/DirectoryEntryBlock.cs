@@ -1,5 +1,4 @@
 ﻿using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using UnoVPKTool.Extensions;
@@ -53,7 +52,7 @@ namespace UnoVPKTool.VPK
                 return sum;
             }
         }
-        
+
         /// <summary>
         /// Gets the total compressed size of this block by adding the compressed size of all entries.
         /// </summary>

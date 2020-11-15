@@ -32,26 +32,6 @@ namespace UnoVPKTool.Extensions
             return sb.ToString();
         }
 
-        /// <summary>
-        /// Reads a <see cref="Tree"/> from the underlying stream and returns the list of entry blocks.
-        /// </summary>
-        /// <param name="reader"></param>
-        /// <returns></returns>
-        public static Tree ReadTree(this BinaryReader reader, out IList<DirectoryEntryBlock> entryBlocks)
-        {
-            return new Tree(reader, out entryBlocks);
-        }
-
-        /// <summary>
-        /// Reads a <see cref="Tree"/> from the underlying stream.
-        /// </summary>
-        /// <param name="reader"></param>
-        /// <returns></returns>
-        public static Tree ReadTree(this BinaryReader reader)
-        {
-            return new Tree(reader);
-        }
-
         public static IEnumerable<DirectoryEntryBlock> ReadEntryBlocks(this BinaryReader reader)
         {
             string extension, path, name;

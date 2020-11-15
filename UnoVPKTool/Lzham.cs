@@ -5,6 +5,11 @@ namespace UnoVPKTool
 {
     public static class Lzham
     {
+        /// <summary>
+        /// The size of the LZHAM dictionary used to compress Apex Legends VPK archives.
+        /// </summary>
+        public const uint ApexDictSize = 20;
+
         public static byte[] DecompressMemory(byte[] compressedBytes, ulong uncompressedSize)
         {
             UIntPtr compressedLength = new UIntPtr((uint)compressedBytes.Length);
@@ -14,7 +19,7 @@ namespace UnoVPKTool
 
             uint adler32 = 0;
 
-            var parameters = new DecompressionParameters { DictionarySize = 20 };
+            var parameters = new DecompressionParameters { DictionarySize = ApexDictSize, Flags = DecompressionFlags.OutputUnbuffered };
             parameters.Initialize();
 
             var result = LzhamWrapper.Lzham.DecompressMemory(parameters, compressedBytes, ref compressedLength, 0, decompressedBytes, ref decompressedLength, 0, ref adler32);
