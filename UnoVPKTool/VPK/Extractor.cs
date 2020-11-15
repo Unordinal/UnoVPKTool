@@ -60,7 +60,7 @@ namespace UnoVPKTool.VPK
             foreach (var block in blocks)
             {
                 byte[] buffer = new byte[block.TotalUncompressedSize];
-                ReadRawBlock(archiveStreams, buffer, block);
+                ReadRawBlock(archiveStreams[block.ArchiveIndex], buffer, block);
                 yield return (buffer, block);
             }
         }
@@ -86,13 +86,14 @@ namespace UnoVPKTool.VPK
         /// <param name="buffer"></param>
         /// <param name="block"></param>
         /// <returns></returns>
-        private static int ReadRawBlock(Stream[] archiveStreams, Span<byte> buffer, DirectoryEntryBlock block)
+        private static int ReadRawBlock(Stream archiveStream, Span<byte> buffer, DirectoryEntryBlock block)
         {
             int offset = 0;
             foreach (var entry in block.Entries)
             {
                 var entrySlice = buffer.Slice(offset, (int)entry.UncompressedSize);
-                offset += ReadRawEntry(archiveStreams[block.ArchiveIndex], entrySlice, entry.Offset);
+                ReadRawEntry(archiveStream, entrySlice, entry.Offset);
+                offset += (int)entry.UncompressedSize;
             }
             return offset;
         }
@@ -110,7 +111,7 @@ namespace UnoVPKTool.VPK
                 var entrySlice = buffer.Slice(offset, (int)entry.UncompressedSize);
                 if (entry.IsCompressed)
                 {
-                    DecompressRawEntry(entrySlice, entry.CompressedSize);
+                    DecompressRawEntry(entrySlice, (int)entry.CompressedSize);
                 }
                 offset += (int)entry.UncompressedSize;
             }
@@ -149,9 +150,9 @@ namespace UnoVPKTool.VPK
         /// </summary>
         /// <param name="buffer"></param>
         /// <param name="compressedSize"></param>
-        private static void DecompressRawEntry(Span<byte> buffer, ulong compressedSize)
+        private static void DecompressRawEntry(Span<byte> buffer, int compressedSize)
         {
-            var entrySlice = buffer.Slice(0, (int)compressedSize);
+            var entrySlice = buffer.Slice(0, compressedSize);
             Lzham.DecompressMemory(entrySlice.ToArray(), (ulong)buffer.Length).CopyTo(buffer);
         }
     }
