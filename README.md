@@ -10,4 +10,4 @@ For the [Tests](UnoVPKTool.Tests), a folder named `TestFiles` is required in its
 
 ### Libraries
 Uses a modified version of [Lzham.Net](https://github.com/AndrewSav/Lzham.Net) by AndrewSav.
-- [MIT License](LzhamWrapper/License.txt)
+- [MIT License](LzhamWrapper/LICENSE.txt)
