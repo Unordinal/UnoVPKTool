@@ -61,8 +61,7 @@ namespace UnoVPKTool.VPK
             if (!Path.IsPathFullyQualified(path)) path = Path.GetFullPath(path);
             FilePath = path;
 
-            using var fileStream = File.OpenRead(path);
-            using var reader = new BinaryReader(fileStream);
+            using var reader = new BinaryReader(new MemoryStream(File.ReadAllBytes(path)));
 
             Magic = reader.ReadUInt32();
             if (Magic != ExpectedMagic) throw new InvalidVPKFileException($"Incorrect magic: got '0x{Magic:X4}', expected '0x{ExpectedMagic:X4}'");
@@ -90,16 +89,6 @@ namespace UnoVPKTool.VPK
                 string archivePath = Utils.DirectoryPathToArchivePath(FilePath, i, vpkArchiveDirectory);
                 Archives[i] = archivePath;
             }
-        }
-
-        /// <summary>
-        /// Reads data pointed to by the given block from the appropriate archive and then decompresses it before returning it.
-        /// </summary>
-        /// <param name="block"></param>
-        /// <returns>A decompressed array of bytes.</returns>
-        public byte[] ExtractBlock(DirectoryEntryBlock block)
-        {
-            return Extractor.ExtractBlock(FilePath, block, Archives[block.ArchiveIndex]);
         }
 
         public void Write(BinaryWriter writer)

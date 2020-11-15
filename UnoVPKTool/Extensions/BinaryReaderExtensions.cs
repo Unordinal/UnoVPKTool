@@ -25,9 +25,7 @@ namespace UnoVPKTool.Extensions
                     sb.Append(c);
                 }
             }
-            catch (Exception)
-            {
-            }
+            catch (Exception) { }
 
             return sb.ToString();
         }

@@ -2,9 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.IO.MemoryMappedFiles;
 using System.Linq;
+using System.Threading.Tasks;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using UnoVPKTool.Extensions;
 using UnoVPKTool.VPK;
 
 namespace UnoVPKTool.Tests
@@ -17,6 +18,7 @@ namespace UnoVPKTool.Tests
 
         private static readonly IEnumerable<string> TestFiles = Directory.EnumerateFiles(TestFilesPath, "*_dir.vpk", SearchOption.TopDirectoryOnly);
         private static readonly string TestFile = Path.Combine(TestFilesPath, "englishclient_frontend.bsp.pak000_dir.vpk");
+        private static readonly string TestArchive = Path.Combine(TestFilesPath, "client_frontend.bsp.pak000_000.vpk");
         private static readonly string ExtractPath = Path.Combine(TestFilesPath, "extracted");
 
         [TestMethod]
@@ -26,66 +28,68 @@ namespace UnoVPKTool.Tests
         }
 
         [TestMethod]
-        public void ExtractAllFilesTest()
+        public void TestPerfTest()
         {
-            DirectoryFile file = new DirectoryFile(TestFile);
-            var fullDir = Path.Combine(ExtractPath, Path.GetFileNameWithoutExtension(file.FilePath) + Path.DirectorySeparatorChar);
-            Directory.CreateDirectory(fullDir);
-
-            foreach (var block in file.EntryBlocks)
+            byte[] buffer = new byte[1000];
+            Random rnd = new Random();
+            for (int i = 0; i < buffer.Length; i++)
             {
-                var path = Path.Combine(fullDir, block.FilePath);
-                var blockData = Extractor.ExtractBlock(TestFile, block);
-                Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-
-                File.WriteAllBytes(path, blockData);
+                buffer[i] = (byte)rnd.Next(byte.MinValue, byte.MaxValue);
             }
+
+            Console.WriteLine("WriteAllBytes");
+            Benchmarker.BenchmarkTime(() =>
+            {
+                //File.WriteAllBytes(TestFilesPath + "test.test", buffer);
+                using var fs = File.Create(TestFilesPath + "test.test", buffer.Length, FileOptions.SequentialScan);
+                fs.Write(buffer);
+            }, 500);
+            Console.WriteLine("");
+
+            Console.WriteLine("FS Seek and Read");
+            Benchmarker.BenchmarkTime(() =>
+            {
+                using var fs = File.Open(TestArchive, FileMode.Open, FileAccess.Read, FileShare.Read);
+                int offset = rnd.Next(0, 100000);
+                fs.Seek(offset, SeekOrigin.Begin);
+                fs.Read(buffer);
+            }, 500);
+            Console.WriteLine("");
+
+            using var mmf = MemoryMappedFile.CreateFromFile(TestArchive);
+            using var mmvs = mmf.CreateViewStream();
+            Console.WriteLine("MMVS Seek and Read");
+            Benchmarker.BenchmarkTime(() =>
+            {
+                int offset = rnd.Next(0, 100000);
+                mmvs.Seek(offset, SeekOrigin.Begin);
+                mmvs.Read(buffer);
+            }, 500);
+            Console.WriteLine("");
+
+            using var mmfo = MemoryMappedFile.CreateFromFile(TestFilesPath + "test.test", FileMode.Create, null, 1000);
+            using var mmvso = mmf.CreateViewStream();
+            Console.WriteLine("Seek and Read, Write");
+            Benchmarker.BenchmarkTime(() =>
+            {
+                int offset = rnd.Next(0, 100000);
+                mmvs.Seek(offset, SeekOrigin.Begin);
+                mmvs.Read(buffer);
+                mmvso.Seek(0, SeekOrigin.Begin);
+                mmvso.Write(buffer);
+            }, 500);
+            Console.WriteLine("");
         }
-        
+
         [TestMethod]
-        public void ExtractAllFilesThruFileTest()
+        public void TestExtractorExtractAll()
         {
-            DirectoryFile file = new DirectoryFile(TestFile);
+            var file = new DirectoryFile(TestFile);
             var fullDir = Path.Combine(ExtractPath, Path.GetFileNameWithoutExtension(file.FilePath) + Path.DirectorySeparatorChar);
             Directory.CreateDirectory(fullDir);
 
-            foreach (var block in file.EntryBlocks)
-            {
-                var path = Path.Combine(fullDir, block.FilePath);
-                var blockData = file.ExtractBlock(block);
-                Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-
-                File.WriteAllBytes(path, blockData);
-            }
-        }
-        
-        // Very slow, obviously.
-        /*[TestMethod]
-        public void ExtractAllFilesFromAllDirsTest()
-        {
-            foreach (var file in TestFiles)
-            {
-                string filePath = Path.GetFullPath(file);
-                DirectoryFile dirFile = new DirectoryFile(filePath);
-                var fullDir = Path.Combine(ExtractPath, Path.GetFileNameWithoutExtension(dirFile.FilePath) + Path.DirectorySeparatorChar);
-                Directory.CreateDirectory(fullDir);
-
-                foreach (var block in dirFile.EntryBlocks)
-                {
-                    var path = Path.Combine(fullDir, block.FilePath);
-                    var blockData = Extractor.ExtractBlock(filePath, block);
-                    Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-
-                    File.WriteAllBytes(path, blockData);
-                }
-            }
-        }*/
-
-        private BinaryReader RetrieveReaderForFilePath(string path)
-        {
-            var stream = File.OpenRead(path);
-            var reader = new BinaryReader(stream);
-            return reader;
+            using var extractor = new Extractor(file);
+            extractor.ExtractAll(fullDir);
         }
     }
 }

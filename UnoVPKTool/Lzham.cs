@@ -29,7 +29,7 @@ namespace UnoVPKTool
             }
             if (decompressedLength.ToUInt64() != uncompressedSize)
             {
-                throw new Exception($"Wrong output size: {decompressedLength} vs {uncompressedSize}");
+                throw new Exception($"Data length mismatch: {decompressedLength} vs {uncompressedSize}");
             }
 
             return decompressedBytes;

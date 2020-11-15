@@ -1,89 +1,158 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Threading.Tasks;
+using System.IO.MemoryMappedFiles;
 
 namespace UnoVPKTool.VPK
 {
-    public static class Extractor
+    public sealed class Extractor : IDisposable
     {
-        /// <summary>
-        /// Decompresses and returns the bytes of the given <see cref="DirectoryEntryBlock"/>.
-        /// </summary>
-        /// <param name="vpkDirectoryFilePath">The path to the VPK directory file.</param>
-        /// <param name="block">The block to extract.</param>
-        /// <param name="vpkArchiveDirectory">The directory where the VPK archives are stored. If empty, uses the base VPK directory.</param>
-        /// <returns></returns>
-        public static byte[] ExtractBlock(string vpkDirectoryFilePath, DirectoryEntryBlock block, string vpkArchiveDirectory = "")
+        private MemoryMappedFile[] _archiveMappedFiles;
+        private MemoryMappedViewStream[] _archiveStreams;
+        private DirectoryFile _file;
+
+        public Extractor(DirectoryFile file)
         {
-            if (!File.Exists(vpkDirectoryFilePath)) throw new FileNotFoundException("The given VPK directory file was not found: " + vpkDirectoryFilePath);
-
-            string archivePath = Utils.DirectoryPathToArchivePath(vpkDirectoryFilePath, block.ArchiveIndex, vpkArchiveDirectory);
-            if (!File.Exists(archivePath)) throw new FileNotFoundException("Could not find a VPK archive at the given path: " + archivePath);
-
-            using var fileStream = File.Open(archivePath, FileMode.Open, FileAccess.Read);
-            using var reader = new BinaryReader(fileStream);
-
-            List<byte[]> decompData = new List<byte[]>();
-            foreach (var entry in block.Entries)
+            int archiveCount = file.Archives.Length;
+            _archiveMappedFiles = new MemoryMappedFile[archiveCount];
+            _archiveStreams = new MemoryMappedViewStream[archiveCount];
+            for (int i = 0; i < _archiveMappedFiles.Length; i++)
             {
-                fileStream.Seek((long)entry.Offset, SeekOrigin.Begin);
-
-                byte[] buffer = reader.ReadBytes((int)entry.CompressedSize);
-                byte[] decompressed;
-                if (entry.IsCompressed)
-                    decompressed = Lzham.DecompressMemory(buffer, entry.UncompressedSize);
-                else
-                    decompressed = buffer;
-
-                decompData.Add(decompressed);
+                var mmf = MemoryMappedFile.CreateFromFile(file.Archives[i]);
+                var mmvs = mmf.CreateViewStream();
+                _archiveMappedFiles[i] = mmf;
+                _archiveStreams[i] = mmvs;
             }
 
-            return decompData.SelectMany(x => x).ToArray();
+            _file = file;
+        }
+
+        public void Dispose()
+        {
+            for (int i = 0; i < _archiveMappedFiles.Length; i++)
+            {
+                _archiveStreams[i].Dispose();
+                _archiveMappedFiles[i].Dispose();
+            }
         }
 
         /// <summary>
-        /// Decompresses and returns the bytes of the given <see cref="DirectoryEntryBlock"/> asynchronously.
+        /// Extracts all blocks in the given file to the specified base directory.
         /// </summary>
-        /// <param name="vpkDirectoryFilePath">The path to the VPK directory file.</param>
-        /// <param name="block">The block to extract.</param>
-        /// <param name="vpkArchiveDirectory">The directory where the VPK archives are stored. If empty, uses the base VPK directory.</param>
-        /// <returns></returns>
-        public static async Task<byte[]> ExtractBlockAsync(string vpkDirectoryFilePath, DirectoryEntryBlock block, string vpkArchiveDirectory = "")
+        /// <param name="basePath"></param>
+        public void ExtractAll(string basePath)
         {
-            if (!File.Exists(vpkDirectoryFilePath)) throw new FileNotFoundException("The given VPK directory file was not found: " + vpkDirectoryFilePath);
-
-            string archivePath = Utils.DirectoryPathToArchivePath(vpkDirectoryFilePath, block.ArchiveIndex, vpkArchiveDirectory);
-            if (!File.Exists(archivePath)) throw new FileNotFoundException("Could not find a VPK archive at the given path: " + archivePath);
-
-            using var fileStream = File.Open(archivePath, FileMode.Open, FileAccess.Read);
-            using var reader = new BinaryReader(fileStream);
-
-            List<byte[]> decompData = new List<byte[]>();
-            foreach (var entry in block.Entries)
+            var decompBlocks = DecompressRawBlocks(ReadRawBlocks(_archiveStreams, _file.EntryBlocks));
+            foreach (var (rawBlock, block) in decompBlocks)
             {
-                fileStream.Seek((long)entry.Offset, SeekOrigin.Begin);
-
-                byte[] buffer = reader.ReadBytes((int)entry.CompressedSize);
-                byte[] decompressed;
-                if (entry.IsCompressed)
-                    decompressed = Lzham.DecompressMemory(buffer, entry.UncompressedSize);
-                else
-                    decompressed = buffer;
-
-                decompData.Add(decompressed);
+                WriteRawBlock(basePath, rawBlock, block);
             }
-
-            return decompData.SelectMany(x => x).ToArray();
         }
 
         /// <summary>
-        /// Reads the data of a <see cref="DirectoryEntry"/> from a VPK archive.
+        /// Reads the given blocks using the appropriate passed-in streams. Indices must match that of the initial file's <see cref="DirectoryFile.Archives"/>.
         /// </summary>
+        /// <param name="archiveStreams"></param>
+        /// <param name="blocks"></param>
         /// <returns></returns>
-        public static byte[] GetEntryData(string vpkDirectoryFilePath, DirectoryEntry entry, string vpkArchiveDirectory = "")
+        private static IEnumerable<(byte[], DirectoryEntryBlock)> ReadRawBlocks(Stream[] archiveStreams, IEnumerable<DirectoryEntryBlock> blocks)
         {
-            return null;
+            foreach (var block in blocks)
+            {
+                byte[] buffer = new byte[block.TotalUncompressedSize];
+                ReadRawBlock(archiveStreams, buffer, block);
+                yield return (buffer, block);
+            }
+        }
+
+        /// <summary>
+        /// Decompresses the given blocks.
+        /// </summary>
+        /// <param name="blocks"></param>
+        /// <returns></returns>
+        private static IEnumerable<(byte[], DirectoryEntryBlock)> DecompressRawBlocks(IEnumerable<(byte[], DirectoryEntryBlock)> blocks)
+        {
+            foreach (var (rawBlock, block) in blocks)
+            {
+                DecompressRawBlock(rawBlock, block);
+                yield return (rawBlock, block);
+            }
+        }
+
+        /// <summary>
+        /// Reads a raw block from the stream into the given buffer.
+        /// </summary>
+        /// <param name="archiveStreams"></param>
+        /// <param name="buffer"></param>
+        /// <param name="block"></param>
+        /// <returns></returns>
+        private static int ReadRawBlock(Stream[] archiveStreams, Span<byte> buffer, DirectoryEntryBlock block)
+        {
+            int offset = 0;
+            foreach (var entry in block.Entries)
+            {
+                var entrySlice = buffer.Slice(offset, (int)entry.UncompressedSize);
+                offset += ReadRawEntry(archiveStreams[block.ArchiveIndex], entrySlice, entry.Offset);
+            }
+            return offset;
+        }
+
+        /// <summary>
+        /// Decompresses the raw blocks in the given buffer of length <see cref="DirectoryEntryBlock.TotalUncompressedSize"/> into the same buffer.
+        /// </summary>
+        /// <param name="buffer"></param>
+        /// <param name="block"></param>
+        private static void DecompressRawBlock(Span<byte> buffer, DirectoryEntryBlock block)
+        {
+            int offset = 0;
+            foreach (var entry in block.Entries)
+            {
+                var entrySlice = buffer.Slice(offset, (int)entry.UncompressedSize);
+                if (entry.IsCompressed)
+                {
+                    DecompressRawEntry(entrySlice, entry.CompressedSize);
+                }
+                offset += (int)entry.UncompressedSize;
+            }
+        }
+
+        /// <summary>
+        /// Writes a raw block of data to a file, combining <paramref name="basePath"/> with block's <see cref="DirectoryEntryBlock.FilePath"/>. Directories will be created as necessary.
+        /// </summary>
+        /// <param name="basePath"></param>
+        /// <param name="rawBlock"></param>
+        /// <param name="block"></param>
+        private static void WriteRawBlock(string basePath, byte[] rawBlock, DirectoryEntryBlock block)
+        {
+            string path = Path.Combine(basePath, block.FilePath);
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+
+            using var fs = new FileStream(path, FileMode.OpenOrCreate, FileAccess.Write, FileShare.Read, (int)block.TotalUncompressedSize);
+            fs.Write(rawBlock);
+        }
+
+        /// <summary>
+        /// Reads a raw entry from the stream at the specified offset into the given buffer.
+        /// </summary>
+        /// <param name="archiveStream"></param>
+        /// <param name="buffer"></param>
+        /// <param name="entryOffset"></param>
+        /// <returns></returns>
+        private static int ReadRawEntry(Stream archiveStream, Span<byte> buffer, ulong entryOffset)
+        {
+            archiveStream.Seek((long)entryOffset, SeekOrigin.Begin);
+            return archiveStream.Read(buffer);
+        }
+
+        /// <summary>
+        /// Decompresses a raw entry in the buffer of length <see cref="DirectoryEntry.UncompressedSize"/> into the same buffer.
+        /// </summary>
+        /// <param name="buffer"></param>
+        /// <param name="compressedSize"></param>
+        private static void DecompressRawEntry(Span<byte> buffer, ulong compressedSize)
+        {
+            var entrySlice = buffer.Slice(0, (int)compressedSize);
+            Lzham.DecompressMemory(entrySlice.ToArray(), (ulong)buffer.Length).CopyTo(buffer);
         }
     }
 }
