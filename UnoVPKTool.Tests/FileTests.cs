@@ -42,6 +42,23 @@ namespace UnoVPKTool.Tests
             }
         }
         
+        [TestMethod]
+        public void ExtractAllFilesThruFileTest()
+        {
+            DirectoryFile file = new DirectoryFile(TestFile);
+            var fullDir = Path.Combine(ExtractPath, Path.GetFileNameWithoutExtension(file.FilePath) + Path.DirectorySeparatorChar);
+            Directory.CreateDirectory(fullDir);
+
+            foreach (var block in file.EntryBlocks)
+            {
+                var path = Path.Combine(fullDir, block.FilePath);
+                var blockData = file.ExtractBlock(block);
+                Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+
+                File.WriteAllBytes(path, blockData);
+            }
+        }
+        
         // Very slow, obviously.
         /*[TestMethod]
         public void ExtractAllFilesFromAllDirsTest()

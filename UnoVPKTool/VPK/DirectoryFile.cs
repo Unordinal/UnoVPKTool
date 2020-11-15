@@ -46,11 +46,17 @@ namespace UnoVPKTool.VPK
         public IList<DirectoryEntryBlock> EntryBlocks { get; }
 
         /// <summary>
+        /// The VPK archives that entries within this <see cref="DirectoryFile"/> point to. The indices within this are equal to a block's <see cref="DirectoryEntryBlock.ArchiveIndex"/>.
+        /// </summary>
+        public string[] Archives { get; }
+
+        /// <summary>
         /// Creates a new <see cref="DirectoryFile"/> from the given path to a VPK directory file.
         /// </summary>
         /// <param name="path">The path to a VPK directory file.</param>
+        /// <param name="vpkArchiveDirectory">This is the location that is searched for matching VPK archive files. If empty, uses the path this VPK directory file is in.</param>
         /// <exception cref="InvalidDataException"/>
-        public DirectoryFile(string path)
+        public DirectoryFile(string path, string vpkArchiveDirectory = "")
         {
             if (!Path.IsPathFullyQualified(path)) path = Path.GetFullPath(path);
             FilePath = path;
@@ -68,38 +74,37 @@ namespace UnoVPKTool.VPK
 
             TreeSize = reader.ReadUInt32();
             FileDataSectionSize = reader.ReadUInt32();
-            EntryBlocks = reader.ReadEntryBlocks().ToList();
+
+            EntryBlocks = new List<DirectoryEntryBlock>();
+            ushort maxArchiveIndex = 0;
+            var blocks = reader.ReadEntryBlocks();
+            foreach (var block in blocks)
+            {
+                EntryBlocks.Add(block);
+                if (block.ArchiveIndex > maxArchiveIndex) maxArchiveIndex = block.ArchiveIndex;
+            }
+
+            Archives = new string[maxArchiveIndex + 1];
+            for (ushort i = 0; i < maxArchiveIndex + 1; i++)
+            {
+                string archivePath = Utils.DirectoryPathToArchivePath(FilePath, i, vpkArchiveDirectory);
+                Archives[i] = archivePath;
+            }
+        }
+
+        /// <summary>
+        /// Reads data pointed to by the given block from the appropriate archive and then decompresses it before returning it.
+        /// </summary>
+        /// <param name="block"></param>
+        /// <returns>A decompressed array of bytes.</returns>
+        public byte[] ExtractBlock(DirectoryEntryBlock block)
+        {
+            return Extractor.ExtractBlock(FilePath, block, Archives[block.ArchiveIndex]);
         }
 
         public void Write(BinaryWriter writer)
         {
             throw new NotImplementedException();
-            /*writer.Write(Magic);
-            writer.Write((ushort)Version.Major);
-            writer.Write((ushort)Version.Minor);
-
-            byte[]? treeBytes = null;
-            using (MemoryStream memStream = new MemoryStream())
-            {
-                using (BinaryWriter treeWriter = new BinaryWriter(memStream))
-                {
-                    Tree.Write(treeWriter);
-                    treeBytes = memStream.ToArray();
-                    TreeSize = (uint)treeBytes.Length;
-
-                    writer.Write(TreeSize);
-                }
-            }
-
-            uint fileData = 0;
-            Tree.RootNode.Traverse((n) =>
-            {
-                if (n.EntryBlock is not null) fileData += n.EntryBlock.PreloadBytes;
-            });
-            FileDataSectionSize = fileData;
-
-            writer.Write(FileDataSectionSize);
-            writer.Write(treeBytes);*/
         }
 
         public override string ToString()
