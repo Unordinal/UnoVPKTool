@@ -105,5 +105,14 @@ namespace UnoVPKTool.Tests
                 extractor.ExtractAll(fullDir);
             }
         }
+
+        [TestMethod]
+        public void TestTemplate()
+        {
+            var file = new DirectoryFile(TestFile);
+            var fullDir = Path.Combine(ExtractPath, Path.GetFileNameWithoutExtension(file.FilePath) + Path.DirectorySeparatorChar);
+            Directory.CreateDirectory(fullDir);
+            using var extractor = new Extractor(file);
+        }
     }
 }

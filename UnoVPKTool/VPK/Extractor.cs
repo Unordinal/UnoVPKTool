@@ -5,23 +5,29 @@ using System.IO.MemoryMappedFiles;
 
 namespace UnoVPKTool.VPK
 {
+    /// <summary>
+    /// A class that helps with extracting content from VPK archives.
+    /// </summary>
+    /// <remarks>
+    /// Notes: 
+    /// <br/>
+    /// Whenever the words 'block' or 'entry block' are used, they are referring to a single file whose piece(s) reside in a VPK archive file ('<c>pak000_###</c>' where <c>###</c> denotes the archive index).
+    /// <br/>
+    /// An entry block can be one piece, or split up into multiple pieces. Each piece is referred to as an 'entry'.
+    /// <br/>
+    /// An entry is simply a length of bytes stored at an offset in a VPK archive, and is usually compressed using LZHAM -- specifically, LZHAM alpha8 with a dict size of 20.
+    /// </remarks>
     public sealed class Extractor : IDisposable
     {
-        private MemoryMappedFile[] _archiveMappedFiles;
-        private MemoryMappedViewStream[] _archiveStreams;
-        private DirectoryFile _file;
+        private readonly FileStream[] _archiveStreams;
+        private readonly DirectoryFile _file;
 
         public Extractor(DirectoryFile file)
         {
-            int archiveCount = file.Archives.Length;
-            _archiveMappedFiles = new MemoryMappedFile[archiveCount];
-            _archiveStreams = new MemoryMappedViewStream[archiveCount];
-            for (int i = 0; i < _archiveMappedFiles.Length; i++)
+            _archiveStreams = new FileStream[file.Archives.Length];
+            for (int i = 0; i < _archiveStreams.Length; i++)
             {
-                var mmf = MemoryMappedFile.CreateFromFile(file.Archives[i]);
-                var mmvs = mmf.CreateViewStream();
-                _archiveMappedFiles[i] = mmf;
-                _archiveStreams[i] = mmvs;
+                _archiveStreams[i] = new FileStream(file.Archives[i], FileMode.Open, FileAccess.Read, FileShare.Read, 8192, FileOptions.None);
             }
 
             _file = file;
@@ -29,11 +35,20 @@ namespace UnoVPKTool.VPK
 
         public void Dispose()
         {
-            for (int i = 0; i < _archiveMappedFiles.Length; i++)
+            for (int i = 0; i < _archiveStreams.Length; i++)
             {
                 _archiveStreams[i].Dispose();
-                _archiveMappedFiles[i].Dispose();
             }
+        }
+
+        /// <summary>
+        /// Returns an appropriate stream for the specified archive index.
+        /// </summary>
+        /// <param name="archiveIndex"></param>
+        /// <returns></returns>
+        public Stream GetStreamForArchive(ushort archiveIndex)
+        {
+            return _archiveStreams[archiveIndex];
         }
 
         /// <summary>
@@ -55,7 +70,7 @@ namespace UnoVPKTool.VPK
         /// <param name="archiveStreams"></param>
         /// <param name="blocks"></param>
         /// <returns></returns>
-        private static IEnumerable<(byte[], DirectoryEntryBlock)> ReadRawBlocks(Stream[] archiveStreams, IEnumerable<DirectoryEntryBlock> blocks)
+        public static IEnumerable<(byte[], DirectoryEntryBlock)> ReadRawBlocks(Stream[] archiveStreams, IEnumerable<DirectoryEntryBlock> blocks)
         {
             foreach (var block in blocks)
             {
@@ -70,7 +85,7 @@ namespace UnoVPKTool.VPK
         /// </summary>
         /// <param name="blocks"></param>
         /// <returns></returns>
-        private static IEnumerable<(byte[], DirectoryEntryBlock)> DecompressRawBlocks(IEnumerable<(byte[], DirectoryEntryBlock)> blocks)
+        public static IEnumerable<(byte[], DirectoryEntryBlock)> DecompressRawBlocks(IEnumerable<(byte[], DirectoryEntryBlock)> blocks)
         {
             foreach (var (rawBlock, block) in blocks)
             {
@@ -86,7 +101,7 @@ namespace UnoVPKTool.VPK
         /// <param name="buffer"></param>
         /// <param name="block"></param>
         /// <returns></returns>
-        private static int ReadRawBlock(Stream archiveStream, Span<byte> buffer, DirectoryEntryBlock block)
+        public static int ReadRawBlock(Stream archiveStream, Span<byte> buffer, DirectoryEntryBlock block)
         {
             int offset = 0;
             foreach (var entry in block.Entries)
@@ -103,7 +118,7 @@ namespace UnoVPKTool.VPK
         /// </summary>
         /// <param name="buffer"></param>
         /// <param name="block"></param>
-        private static void DecompressRawBlock(Span<byte> buffer, DirectoryEntryBlock block)
+        public static void DecompressRawBlock(Span<byte> buffer, DirectoryEntryBlock block)
         {
             int offset = 0;
             foreach (var entry in block.Entries)
@@ -123,7 +138,7 @@ namespace UnoVPKTool.VPK
         /// <param name="basePath"></param>
         /// <param name="rawBlock"></param>
         /// <param name="block"></param>
-        private static void WriteRawBlock(string basePath, byte[] rawBlock, DirectoryEntryBlock block)
+        public static void WriteRawBlock(string basePath, byte[] rawBlock, DirectoryEntryBlock block)
         {
             string path = Path.Combine(basePath, block.FilePath);
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
@@ -139,7 +154,7 @@ namespace UnoVPKTool.VPK
         /// <param name="buffer"></param>
         /// <param name="entryOffset"></param>
         /// <returns></returns>
-        private static int ReadRawEntry(Stream archiveStream, Span<byte> buffer, ulong entryOffset)
+        public static int ReadRawEntry(Stream archiveStream, Span<byte> buffer, ulong entryOffset)
         {
             archiveStream.Seek((long)entryOffset, SeekOrigin.Begin);
             return archiveStream.Read(buffer);
@@ -150,7 +165,7 @@ namespace UnoVPKTool.VPK
         /// </summary>
         /// <param name="buffer"></param>
         /// <param name="compressedSize"></param>
-        private static void DecompressRawEntry(Span<byte> buffer, int compressedSize)
+        public static void DecompressRawEntry(Span<byte> buffer, int compressedSize)
         {
             var entrySlice = buffer.Slice(0, compressedSize);
             Lzham.DecompressMemory(entrySlice.ToArray(), (ulong)buffer.Length).CopyTo(buffer);
