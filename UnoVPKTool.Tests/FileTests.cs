@@ -93,6 +93,45 @@ namespace UnoVPKTool.Tests
         }
         
         [TestMethod]
+        public async Task TestExtractorExtractAllAsync()
+        {
+            var file = new DirectoryFile(TestFile);
+            var fullDir = Path.Combine(ExtractPath, Path.GetFileNameWithoutExtension(file.FilePath) + Path.DirectorySeparatorChar);
+            Directory.CreateDirectory(fullDir);
+
+            int entriesToRead = file.EntryBlocks.Sum(b => b.Entries.Count);
+            int entriesToDecompress = file.EntryBlocks.SelectMany(b => b.Entries.Where(e => e.IsCompressed)).Count();
+            int entriesRead = 0;
+            int entriesDecompressed = 0;
+            object _lock = new object();
+
+            void func(EntryOperation e)
+            {
+                lock (_lock)
+                {
+                    switch (e.OperationPerformed)
+                    {
+                        case EntryOperation.ProcessType.Read:
+                            entriesRead++;
+                            Console.WriteLine($"Read: {entriesRead}/{entriesToRead}");
+                            break;
+                        case EntryOperation.ProcessType.Decompress:
+                            entriesDecompressed++;
+                            Console.WriteLine($"Decompressed: {entriesDecompressed}/{entriesToDecompress}");
+                            break;
+                        default:
+                            break;
+                    }
+                }
+            }
+            Progress<EntryOperation> prog = new Progress<EntryOperation>(func);
+
+            using var extractor = new Extractor(file);
+            var task = extractor.ExtractAllAsync(fullDir, prog);
+            await task;
+        }
+        
+        [TestMethod]
         public void TestExtractorAllFilesExtractAll()
         {
             foreach (var f in TestFiles)

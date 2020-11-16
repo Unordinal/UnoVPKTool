@@ -1,15 +1,18 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
-using System.IO.MemoryMappedFiles;
+using System.Runtime.CompilerServices;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace UnoVPKTool.VPK
 {
+    // Instance Members
     /// <summary>
     /// A class that helps with extracting content from VPK archives.
     /// </summary>
     /// <remarks>
-    /// Notes: 
+    /// Notes:
     /// <br/>
     /// Whenever the words 'block' or 'entry block' are used, they are referring to a single file whose piece(s) reside in a VPK archive file ('<c>pak000_###</c>' where <c>###</c> denotes the archive index).
     /// <br/>
@@ -17,17 +20,17 @@ namespace UnoVPKTool.VPK
     /// <br/>
     /// An entry is simply a length of bytes stored at an offset in a VPK archive, and is usually compressed using LZHAM -- specifically, LZHAM alpha8 with a dict size of 20.
     /// </remarks>
-    public sealed class Extractor : IDisposable
+    public sealed partial class Extractor : IDisposable
     {
         private readonly FileStream[] _archiveStreams;
         private readonly DirectoryFile _file;
 
-        public Extractor(DirectoryFile file)
+        public Extractor(DirectoryFile file, bool useAsync = false)
         {
             _archiveStreams = new FileStream[file.Archives.Length];
             for (int i = 0; i < _archiveStreams.Length; i++)
             {
-                _archiveStreams[i] = new FileStream(file.Archives[i], FileMode.Open, FileAccess.Read, FileShare.Read, 8192, FileOptions.None);
+                _archiveStreams[i] = new FileStream(file.Archives[i], FileMode.Open, FileAccess.Read, FileShare.Read, 8196, useAsync);
             }
 
             _file = file;
@@ -65,6 +68,22 @@ namespace UnoVPKTool.VPK
         }
 
         /// <summary>
+        /// Asynchronously extracts all blocks in the given file to the specified base directory.
+        /// </summary>
+        /// <param name="basePath"></param>
+        public async Task ExtractAllAsync(string basePath, IProgress<EntryOperation>? progress = null, CancellationToken cancellationToken = default)
+        {
+            var decompBlocks = DecompressRawBlocksAsync(ReadRawBlocksAsync(_archiveStreams, _file.EntryBlocks, progress, cancellationToken), progress, cancellationToken);
+            await foreach (var (rawBlock, block) in decompBlocks.WithCancellation(cancellationToken))
+            {
+                await WriteRawBlockAsync(basePath, rawBlock, block, cancellationToken);
+            }
+        }
+    }
+
+    public sealed partial class Extractor
+    {
+        /// <summary>
         /// Reads the given blocks using the appropriate passed-in streams. Indices must match that of the initial file's <see cref="DirectoryFile.Archives"/>.
         /// </summary>
         /// <param name="archiveStreams"></param>
@@ -76,6 +95,26 @@ namespace UnoVPKTool.VPK
             {
                 byte[] buffer = new byte[block.TotalUncompressedSize];
                 ReadRawBlock(archiveStreams[block.ArchiveIndex], buffer, block);
+                yield return (buffer, block);
+            }
+        }
+
+        /// <summary>
+        /// Asynchronously reads the given blocks using the appropriate passed-in streams. Indices must match that of the initial file's <see cref="DirectoryFile.Archives"/>.
+        /// </summary>
+        /// <param name="archiveStreams"></param>
+        /// <param name="blocks"></param>
+        /// <returns></returns>
+        public static async IAsyncEnumerable<(byte[], DirectoryEntryBlock)> ReadRawBlocksAsync(
+            Stream[] archiveStreams,
+            IEnumerable<DirectoryEntryBlock> blocks,
+            IProgress<EntryOperation>? progress = null,
+            [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            foreach (var block in blocks)
+            {
+                byte[] buffer = new byte[block.TotalUncompressedSize];
+                await ReadRawBlockAsync(archiveStreams[block.ArchiveIndex], buffer, block, progress, cancellationToken);
                 yield return (buffer, block);
             }
         }
@@ -95,13 +134,30 @@ namespace UnoVPKTool.VPK
         }
 
         /// <summary>
+        /// Asynchronously decompresses the given blocks.
+        /// </summary>
+        /// <param name="blocks"></param>
+        /// <returns></returns>
+        public static async IAsyncEnumerable<(byte[], DirectoryEntryBlock)> DecompressRawBlocksAsync(
+            IAsyncEnumerable<(byte[], DirectoryEntryBlock)> blocks,
+            IProgress<EntryOperation>? progress = null,
+            [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            await foreach (var (rawBlock, block) in blocks.WithCancellation(cancellationToken))
+            {
+                await DecompressRawBlockAsync(rawBlock, block, progress, cancellationToken);
+                yield return (rawBlock, block);
+            }
+        }
+
+        /// <summary>
         /// Reads a raw block from the stream into the given buffer.
         /// </summary>
         /// <param name="archiveStreams"></param>
         /// <param name="buffer"></param>
         /// <param name="block"></param>
         /// <returns></returns>
-        public static int ReadRawBlock(Stream archiveStream, Span<byte> buffer, DirectoryEntryBlock block)
+        public static void ReadRawBlock(Stream archiveStream, Span<byte> buffer, DirectoryEntryBlock block)
         {
             int offset = 0;
             foreach (var entry in block.Entries)
@@ -110,7 +166,33 @@ namespace UnoVPKTool.VPK
                 ReadRawEntry(archiveStream, entrySlice, entry.Offset);
                 offset += (int)entry.UncompressedSize;
             }
-            return offset;
+        }
+
+        /// <summary>
+        /// Asynchronously reads a raw block from the stream into the given buffer.
+        /// </summary>
+        /// <param name="archiveStreams"></param>
+        /// <param name="buffer"></param>
+        /// <param name="block"></param>
+        /// <returns></returns>
+        public static async Task ReadRawBlockAsync(
+            Stream archiveStream,
+            Memory<byte> buffer,
+            DirectoryEntryBlock block,
+            IProgress<EntryOperation>? progress = null,
+            CancellationToken cancellationToken = default)
+        {
+            int offset = 0;
+            foreach (var entry in block.Entries)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var entrySlice = buffer.Slice(offset, (int)entry.UncompressedSize);
+                await ReadRawEntryAsync(archiveStream, entrySlice, entry.Offset, cancellationToken);
+                offset += (int)entry.UncompressedSize;
+
+                progress?.Report(EntryOperation.Read);
+            }
         }
 
         /// <summary>
@@ -133,6 +215,33 @@ namespace UnoVPKTool.VPK
         }
 
         /// <summary>
+        /// Asynchronously decompresses the raw blocks in the given buffer of length <see cref="DirectoryEntryBlock.TotalUncompressedSize"/> into the same buffer.
+        /// </summary>
+        /// <param name="buffer"></param>
+        /// <param name="block"></param>
+        public static async Task DecompressRawBlockAsync(
+            Memory<byte> buffer,
+            DirectoryEntryBlock block,
+            IProgress<EntryOperation>? progress = null,
+            CancellationToken cancellationToken = default)
+        {
+            int offset = 0;
+            foreach (var entry in block.Entries)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var entrySlice = buffer.Slice(offset, (int)entry.UncompressedSize);
+                if (entry.IsCompressed)
+                {
+                    await DecompressRawEntryAsync(entrySlice, (int)entry.CompressedSize, cancellationToken);
+                }
+                offset += (int)entry.UncompressedSize;
+
+                progress?.Report(EntryOperation.Decompress);
+            }
+        }
+
+        /// <summary>
         /// Writes a raw block of data to a file, combining <paramref name="basePath"/> with block's <see cref="DirectoryEntryBlock.FilePath"/>. Directories will be created as necessary.
         /// </summary>
         /// <param name="basePath"></param>
@@ -148,16 +257,52 @@ namespace UnoVPKTool.VPK
         }
 
         /// <summary>
+        /// Asynchronously writes a raw block of data to a file, combining <paramref name="basePath"/> with block's <see cref="DirectoryEntryBlock.FilePath"/>. Directories will be created as necessary.
+        /// </summary>
+        /// <param name="basePath"></param>
+        /// <param name="rawBlock"></param>
+        /// <param name="block"></param>
+        public static async Task WriteRawBlockAsync(
+            string basePath,
+            byte[] rawBlock,
+            DirectoryEntryBlock block,
+            CancellationToken cancellationToken = default)
+        {
+            string path = Path.Combine(basePath, block.FilePath);
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+
+            using var fs = new FileStream(path, FileMode.OpenOrCreate, FileAccess.Write, FileShare.Read, (int)block.TotalUncompressedSize, true);
+            await fs.WriteAsync(rawBlock, cancellationToken);
+        }
+
+        /// <summary>
         /// Reads a raw entry from the stream at the specified offset into the given buffer.
         /// </summary>
         /// <param name="archiveStream"></param>
         /// <param name="buffer"></param>
         /// <param name="entryOffset"></param>
         /// <returns></returns>
-        public static int ReadRawEntry(Stream archiveStream, Span<byte> buffer, ulong entryOffset)
+        public static void ReadRawEntry(Stream archiveStream, Span<byte> buffer, ulong entryOffset)
         {
             archiveStream.Seek((long)entryOffset, SeekOrigin.Begin);
-            return archiveStream.Read(buffer);
+            archiveStream.Read(buffer);
+        }
+
+        /// <summary>
+        /// Asynchronously reads a raw entry from the stream at the specified offset into the given buffer.
+        /// </summary>
+        /// <param name="archiveStream"></param>
+        /// <param name="buffer"></param>
+        /// <param name="entryOffset"></param>
+        /// <returns></returns>
+        public static async ValueTask ReadRawEntryAsync(
+            Stream archiveStream,
+            Memory<byte> buffer,
+            ulong entryOffset,
+            CancellationToken cancellationToken = default)
+        {
+            archiveStream.Seek((long)entryOffset, SeekOrigin.Begin);
+            await archiveStream.ReadAsync(buffer, cancellationToken);
         }
 
         /// <summary>
@@ -169,6 +314,37 @@ namespace UnoVPKTool.VPK
         {
             var entrySlice = buffer.Slice(0, compressedSize);
             Lzham.DecompressMemory(entrySlice.ToArray(), (ulong)buffer.Length).CopyTo(buffer);
+        }
+
+        /// <summary>
+        /// Asynchronously decompresses a raw entry in the buffer of length <see cref="DirectoryEntry.UncompressedSize"/> into the same buffer.
+        /// </summary>
+        /// <param name="buffer"></param>
+        /// <param name="compressedSize"></param>
+        public static async Task DecompressRawEntryAsync(
+            Memory<byte> buffer,
+            int compressedSize,
+            CancellationToken cancellationToken = default)
+        {
+            var entrySlice = buffer.Slice(0, compressedSize);
+            await Task.Run(() => Lzham.DecompressMemory(entrySlice.ToArray(), (ulong)buffer.Length).CopyTo(buffer), cancellationToken);
+        }
+    }
+
+    public readonly struct EntryOperation
+    {
+        public enum ProcessType { Unknown, Read, Write, Compress, Decompress }
+
+        public static readonly EntryOperation Read = new EntryOperation(ProcessType.Read);
+        public static readonly EntryOperation Write = new EntryOperation(ProcessType.Write);
+        public static readonly EntryOperation Compress = new EntryOperation(ProcessType.Compress);
+        public static readonly EntryOperation Decompress = new EntryOperation(ProcessType.Decompress);
+
+        public ProcessType OperationPerformed { get; init; }
+
+        public EntryOperation(ProcessType processType)
+        {
+            OperationPerformed = processType;
         }
     }
 }
