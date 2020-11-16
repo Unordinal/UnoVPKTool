@@ -1,8 +1,9 @@
 # UnoVPKTool
+
 WIP. A tool for working with Apex Legends VPK files. Currently, it can read and extract all files with a VPK directory.
+The WPF app is currently a non-thing.
 
 ### Compiling
-The WPF app is currently a non-thing.
 
 Compiles for .NET 5.0.
 
