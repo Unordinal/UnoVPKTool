@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
@@ -12,6 +13,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
+using UnoVPKTool.WPF.ViewModels;
 
 namespace UnoVPKTool.WPF
 {
@@ -23,6 +25,11 @@ namespace UnoVPKTool.WPF
         public MainWindow()
         {
             InitializeComponent();
+            DataContext = new MainViewModel();
+            FileListView.DataContext = new FileListViewModel();
+
+            var assembly = Assembly.GetExecutingAssembly().GetName();
+            Console.WriteLine(string.Join(' ', assembly.Name, assembly.Version));
         }
     }
 }

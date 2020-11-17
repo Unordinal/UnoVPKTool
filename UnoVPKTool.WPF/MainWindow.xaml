@@ -5,14 +5,115 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:UnoVPKTool.WPF"
         mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800">
+        Title="Uno VPK Tool" Height="450" Width="800">
     <Grid>
-        <TreeView>
-            <TreeViewItem Header="Test"/>
-            <TreeViewItem Header="Test"/>
-            <TreeViewItem Header="Test">
-                <TreeViewItem Header="Test2"/>
-            </TreeViewItem>
-        </TreeView>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+        <Menu VerticalAlignment="Top">
+            <MenuItem Grid.Row="0" Header="_File">
+                <MenuItem Header="_Open VPK..."/>
+                <Separator/>
+                <MenuItem Header="_Exit"/>
+            </MenuItem>
+            <MenuItem Header="_Options"/>
+        </Menu>
+        <Grid Grid.Row="1" Margin="5,5,5,5" VerticalAlignment="Stretch">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*" MinHeight="150"/>
+                <RowDefinition Height="auto"/>
+                <RowDefinition Height="0.25*" MinHeight="18"/>
+            </Grid.RowDefinitions>
+            <Grid Grid.Row="0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" MinWidth="150"/>
+                    <ColumnDefinition Width="auto"/>
+                    <ColumnDefinition Width="*" MinWidth="150"/>
+                </Grid.ColumnDefinitions>
+                <TreeView>
+                    <TreeViewItem Header="Test"/>
+                    <TreeViewItem Header="Test"/>
+                    <TreeViewItem Header="Test">
+                        <TreeViewItem Header="Test2"/>
+                    </TreeViewItem>
+                </TreeView>
+                <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Stretch"/>
+                <ListView x:Name="FileListView" Grid.Column="2" ItemsSource="{Binding TestFiles}">
+                    <ListView.View>
+                        <GridView>
+                            <GridView.ColumnHeaderContextMenu>
+                                <ContextMenu>
+                                    <MenuItem Header="Size Column to Fit" Command="{Binding FitColumnCommand}" CommandParameter="{Binding RelativeSource={RelativeSource Self}, Path=Parent.PlacementTarget.Column}"/>
+                                    <MenuItem Header="Size All Columns to Fit" Command="{Binding FitAllColumnsCommand}" CommandParameter="{Binding RelativeSource={RelativeSource Self}, Path=Parent.PlacementTarget.Parent.Columns}"/>
+                                </ContextMenu>
+                            </GridView.ColumnHeaderContextMenu>
+                            <GridViewColumn Header="Name" Width="150" DisplayMemberBinding="{Binding Name}"/>
+                            <GridViewColumn Header="Size" Width="75" DisplayMemberBinding="{Binding Size}"/>
+                            <GridViewColumn Header="Type" Width="75" DisplayMemberBinding="{Binding Type}"/>
+                        </GridView>
+                    </ListView.View>
+                    <ListView.ItemContainerStyle>
+                        <Style TargetType="{x:Type ListViewItem}">
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="ListViewItem">
+                                        <Border CornerRadius="2" SnapsToDevicePixels="True"
+                                        BorderThickness="{TemplateBinding BorderThickness}"
+                                        BorderBrush="{TemplateBinding BorderBrush}"
+                                        Background="{TemplateBinding Background}">
+                                            <Border Name="InnerBorder" CornerRadius="1" BorderThickness="1">
+                                                <Grid>
+                                                    <Grid.RowDefinitions>
+                                                        <RowDefinition MaxHeight="11"/>
+                                                        <RowDefinition/>
+                                                    </Grid.RowDefinitions>
+                                                    <Rectangle Name="UpperHighlight" Visibility="Collapsed" Fill="#75FFFFFF"/>
+                                                    <GridViewRowPresenter Grid.RowSpan="2"  VerticalAlignment="{TemplateBinding VerticalContentAlignment}" SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}"/>
+                                                </Grid>
+                                            </Border>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsSelected" Value="True">
+                                                <Setter Property="Background" Value="LightBlue"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </ListView.ItemContainerStyle>
+                </ListView>
+            </Grid>
+            <GridSplitter Grid.Row="1" Grid.ColumnSpan="2" Height="5" HorizontalAlignment="Stretch"/>
+            <TextBox Grid.Row="2" Grid.ColumnSpan="2" Text="{Binding ConsoleOut}" TextWrapping="Wrap" IsReadOnly="True" VirtualizingPanel.IsVirtualizing="True"/>
+        </Grid>
     </Grid>
+
+    <!--<Window.Resources>
+        <HierarchicalDataTemplate x:Key="TreeViewTest" ItemsSource="{Binding Items}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="5"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Image Width="16"
+                       Height="16"
+                       Source="{StaticResource ImageSourceFolderClosed16x16}"
+                       x:Name="img"/>
+                <TextBlock Text="{Binding Path=Name}"
+                           ToolTip="{Binding Path=Path}"
+                           Grid.Column="2"/>
+            </Grid>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding IsExpanded, RelativeSource={RelativeSource Mode=FindAncestor,AncestorType={x:Type TreeViewItem}}}"
+                             Value="True">
+                    <Setter Property="Source"
+                            TargetName="img"
+                            Value="{StaticResource ImageSourceFolderOpened16x16}"/>
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </HierarchicalDataTemplate>
+    </Window.Resources>-->
 </Window>
