@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
+using System.Text.RegularExpressions;
 using UnoVPKTool.Exceptions;
 using UnoVPKTool.Extensions;
 
@@ -55,7 +55,8 @@ namespace UnoVPKTool.VPK
         /// </summary>
         /// <param name="path">The path to a VPK directory file.</param>
         /// <param name="vpkArchiveDirectory">This is the location that is searched for matching VPK archive files. If empty, uses the path this VPK directory file is in.</param>
-        /// <exception cref="InvalidDataException"/>
+        /// <exception cref="InvalidVPKFileException"/>
+        /// <exception cref="UnsupportedVPKFileException"/>
         public DirectoryFile(string path, string vpkArchiveDirectory = "")
         {
             if (!Path.IsPathFullyQualified(path)) path = Path.GetFullPath(path);
@@ -120,6 +121,10 @@ namespace UnoVPKTool.VPK
         /// The supported VPK versions. Currently contains only v2.3.
         /// </summary>
         public static readonly Version[] SupportedVersions = { new Version(2, 3) };
+
+        public static readonly Regex DirectoryFileNameRegex = new Regex(@".+\.bsp\.pak\d{3}_dir\.vpk");
+
+        public static readonly Regex ArchiveFileNameRegex = new Regex(@".+\.bsp\.pak\d{3}_\d{3}\.vpk");
 
         /// <summary>
         /// Checks if the given VPK version is supported.

@@ -7,6 +7,10 @@
     <LangVersion>preview</LangVersion>
     <UseWPF>true</UseWPF>
     <Platforms>AnyCPU;x86</Platforms>
+    <Product>UnoVPKTool</Product>
+    <Company />
+    <Authors>Unordinal</Authors>
+    <AssemblyName>UnoVPKTool</AssemblyName>
   </PropertyGroup>
 
   <ItemGroup>

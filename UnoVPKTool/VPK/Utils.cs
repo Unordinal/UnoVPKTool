@@ -1,11 +1,35 @@
 ﻿using System;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 
 namespace UnoVPKTool.VPK
 {
     public static class Utils
     {
+        /// <summary>
+        /// Finds the VPK directory that goes with the given VPK archive. Returns null if we couldn't find it.
+        /// </summary>
+        /// <param name="vpkArchivePath"></param>
+        /// <param name="basePath"></param>
+        /// <returns></returns>
+        public static string? ArchivePathToDirectoryPath(string vpkArchivePath, string basePath = "")
+        {
+            var detachedPath = Path.GetDirectoryName(vpkArchivePath) ?? string.Empty;
+            var pureFileName = Path.GetFileName(vpkArchivePath);
+
+            var archiveMatch = Regex.Match(pureFileName, @"(.+)_\d{3}(?>\.vpk)?");
+            if (!archiveMatch.Success) return null;
+
+            string archiveNameStripped = archiveMatch.Groups[1].Value;
+            string dirSearchPattern = $"*{archiveNameStripped}_dir.vpk";
+            string searchPath = Path.Combine(basePath, detachedPath);
+
+            var foundFiles = Directory.EnumerateFiles(searchPath, dirSearchPattern, SearchOption.TopDirectoryOnly);
+
+            return foundFiles.FirstOrDefault();
+        }
+
         /// <summary>
         /// Gets a path to a VPK archive using the given directory path and archive index.
         /// </summary>
@@ -15,10 +39,12 @@ namespace UnoVPKTool.VPK
         /// <returns>A path to the VPK archive. (ex: <c>C:\Games\Apex Legends\vpk\client_frontend.bsp.pak000_000.vpk</c>)</returns>
         public static string DirectoryPathToArchivePath(string vpkDirectoryPath, ushort vpkArchiveIndex, string basePath = "")
         {
+            string pureDirectory = Path.GetDirectoryName(vpkDirectoryPath) ?? string.Empty;
             string pathWithoutLoc = StripLocalizationFromDirectoryPath(vpkDirectoryPath);
-            string archivePath = pathWithoutLoc.Replace("_dir", $"_{vpkArchiveIndex:000}");
+            string fileNameWithoutLoc = Path.GetFileName(pathWithoutLoc);
+            string archivePath = fileNameWithoutLoc.Replace("_dir", $"_{vpkArchiveIndex:000}");
 
-            return Path.Combine(basePath, archivePath);
+            return Path.Combine(basePath, pureDirectory, archivePath);
         }
 
         /// <summary>

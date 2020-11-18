@@ -13,7 +13,7 @@
         </Grid.RowDefinitions>
         <Menu VerticalAlignment="Top">
             <MenuItem Grid.Row="0" Header="_File">
-                <MenuItem Header="_Open VPK..."/>
+                <MenuItem Header="_Open VPK..." Click="OpenVPK_Click"/>
                 <Separator/>
                 <MenuItem Header="_Exit"/>
             </MenuItem>
@@ -86,7 +86,7 @@
                 </ListView>
             </Grid>
             <GridSplitter Grid.Row="1" Grid.ColumnSpan="2" Height="5" HorizontalAlignment="Stretch"/>
-            <TextBox Grid.Row="2" Grid.ColumnSpan="2" Text="{Binding ConsoleOut}" TextWrapping="Wrap" IsReadOnly="True" VirtualizingPanel.IsVirtualizing="True"/>
+            <TextBox Grid.Row="2" Grid.ColumnSpan="2" Text="{Binding ConsoleOut}" TextChanged="TextBox_TextChanged" TextWrapping="Wrap" IsReadOnly="True" VirtualizingPanel.IsVirtualizing="True" VerticalScrollBarVisibility="Auto"/>
         </Grid>
     </Grid>
 
