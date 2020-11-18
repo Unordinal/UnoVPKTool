@@ -130,6 +130,42 @@ namespace UnoVPKTool.Tests
             var task = extractor.ExtractAllAsync(fullDir, prog);
             await task;
         }
+
+        [TestMethod]
+        public void GetOffsetOrdering()
+        {
+            int currFile = 0;
+            var tf2Files = Directory.EnumerateFiles(@"D:\Games\Origin\Titanfall2\vpk", "*_dir.vpk", SearchOption.TopDirectoryOnly);
+            foreach (var f in tf2Files)
+            {
+                var file = new DirectoryFile(f);
+                ulong lastOffset = 0;
+                int b = 0;
+                int e = 0;
+                for (int a = 0; a < file.Archives.Length; a++)
+                {
+                    Debug.WriteLine($"[[ File {f}, Archive {a} ]]");
+                    foreach (var block in file.EntryBlocks.Where(bl => bl.ArchiveIndex == a))
+                    {
+                        foreach (var entry in block.Entries)
+                        {
+                            if (entry.EntryFlags != (EntryFlags)257)
+                            {
+                                Debug.WriteLine($"[A {a}: B {b}, E {e}]: DataID: {entry.EntryFlags}");
+                                Debug.WriteLine(block.FilePath);
+                            }
+                            e++;
+                            lastOffset = entry.Offset;
+                        }
+                        e = 0;
+                        b++;
+                    }
+                    lastOffset = 0;
+                    b = 0;
+                }
+                currFile++;
+            }
+        }
         
         [TestMethod]
         public void TestExtractorAllFilesExtractAll()

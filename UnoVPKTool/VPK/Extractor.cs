@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -79,10 +80,35 @@ namespace UnoVPKTool.VPK
                 await WriteRawBlockAsync(basePath, rawBlock, block, cancellationToken);
             }
         }
+
+        /// <summary>
+        /// Extracts a specific file from the VPK.
+        /// </summary>
+        /// <param name="basePath"></param>
+        /// <param name="fileName"></param>
+        public void Extract(string basePath, string fileName)
+        {
+            Extract(basePath, fileName);
+        }
+
+        /// <summary>
+        /// Extracts many files from the VPK.
+        /// </summary>
+        /// <param name="basePath"></param>
+        /// <param name="fileNames"></param>
+        public void Extract(string basePath, params string[] fileNames)
+        {
+            var targets = _file.EntryBlocks.Where(b => fileNames.Contains(Path.GetFileName(b.FilePath)));
+            var decompBlocks = DecompressRawBlocks(ReadRawBlocks(_archiveStreams, targets));
+            WriteRawBlocks(basePath, decompBlocks);
+        }
     }
 
+    // Static Members - Synchronous
     public sealed partial class Extractor
     {
+        #region Reading
+
         /// <summary>
         /// Reads the given blocks using the appropriate passed-in streams. Indices must match that of the initial file's <see cref="DirectoryFile.Archives"/>.
         /// </summary>
@@ -96,57 +122,6 @@ namespace UnoVPKTool.VPK
                 byte[] buffer = new byte[block.TotalUncompressedSize];
                 ReadRawBlock(archiveStreams[block.ArchiveIndex], buffer, block);
                 yield return (buffer, block);
-            }
-        }
-
-        /// <summary>
-        /// Asynchronously reads the given blocks using the appropriate passed-in streams. Indices must match that of the initial file's <see cref="DirectoryFile.Archives"/>.
-        /// </summary>
-        /// <param name="archiveStreams"></param>
-        /// <param name="blocks"></param>
-        /// <returns></returns>
-        public static async IAsyncEnumerable<(byte[], DirectoryEntryBlock)> ReadRawBlocksAsync(
-            Stream[] archiveStreams,
-            IEnumerable<DirectoryEntryBlock> blocks,
-            IProgress<EntryOperation>? progress = null,
-            [EnumeratorCancellation] CancellationToken cancellationToken = default)
-        {
-            foreach (var block in blocks)
-            {
-                byte[] buffer = new byte[block.TotalUncompressedSize];
-                await ReadRawBlockAsync(archiveStreams[block.ArchiveIndex], buffer, block, progress, cancellationToken);
-                yield return (buffer, block);
-            }
-        }
-
-        /// <summary>
-        /// Decompresses the given blocks.
-        /// </summary>
-        /// <param name="blocks"></param>
-        /// <returns></returns>
-        public static IEnumerable<(byte[], DirectoryEntryBlock)> DecompressRawBlocks(IEnumerable<(byte[], DirectoryEntryBlock)> blocks)
-        {
-            foreach (var (rawBlock, block) in blocks)
-            {
-                DecompressRawBlock(rawBlock, block);
-                yield return (rawBlock, block);
-            }
-        }
-
-        /// <summary>
-        /// Asynchronously decompresses the given blocks.
-        /// </summary>
-        /// <param name="blocks"></param>
-        /// <returns></returns>
-        public static async IAsyncEnumerable<(byte[], DirectoryEntryBlock)> DecompressRawBlocksAsync(
-            IAsyncEnumerable<(byte[], DirectoryEntryBlock)> blocks,
-            IProgress<EntryOperation>? progress = null,
-            [EnumeratorCancellation] CancellationToken cancellationToken = default)
-        {
-            await foreach (var (rawBlock, block) in blocks.WithCancellation(cancellationToken))
-            {
-                await DecompressRawBlockAsync(rawBlock, block, progress, cancellationToken);
-                yield return (rawBlock, block);
             }
         }
 
@@ -165,6 +140,144 @@ namespace UnoVPKTool.VPK
                 var entrySlice = buffer.Slice(offset, (int)entry.UncompressedSize);
                 ReadRawEntry(archiveStream, entrySlice, entry.Offset);
                 offset += (int)entry.UncompressedSize;
+            }
+        }
+
+        /// <summary>
+        /// Reads a raw entry from the stream at the specified offset into the given buffer.
+        /// </summary>
+        /// <param name="archiveStream"></param>
+        /// <param name="buffer"></param>
+        /// <param name="entryOffset"></param>
+        /// <returns></returns>
+        public static void ReadRawEntry(Stream archiveStream, Span<byte> buffer, ulong entryOffset)
+        {
+            archiveStream.Seek((long)entryOffset, SeekOrigin.Begin);
+            archiveStream.Read(buffer);
+        }
+
+        #endregion Reading
+
+        #region Writing
+
+        /// <summary>
+        /// Writes a collection of raw blocks of data to a file in the specified <paramref name="basePath"/>.
+        /// </summary>
+        /// <param name="basePath"></param>
+        /// <param name="rawBlocks"></param>
+        /// <param name="blocks"></param>
+        public static void WriteRawBlocks(string basePath, byte[][] rawBlocks, DirectoryEntryBlock[] blocks)
+        {
+            if (rawBlocks.Length != blocks.Length) throw new ArgumentException("Block list length did not match raw block list length!");
+
+            for (int i = 0; i < rawBlocks.Length; i++)
+            {
+                WriteRawBlock(basePath, rawBlocks[i], blocks[i]);
+            }
+        }
+
+        /// <summary>
+        /// Writes a collection of raw blocks of data to a file in the specified <paramref name="basePath"/>.
+        /// </summary>
+        /// <param name="basePath"></param>
+        /// <param name="rawBlocks"></param>
+        /// <param name="blocks"></param>
+        public static void WriteRawBlocks(string basePath, IEnumerable<(byte[], DirectoryEntryBlock)> blocks)
+        {
+            foreach (var (rawBlock, block) in blocks)
+            {
+                WriteRawBlock(basePath, rawBlock, block);
+            }
+        }
+
+        /// <summary>
+        /// Writes a raw block of data to a file, combining <paramref name="basePath"/> with block's <see cref="DirectoryEntryBlock.FilePath"/>. Directories will be created as necessary.
+        /// </summary>
+        /// <param name="basePath"></param>
+        /// <param name="rawBlock"></param>
+        /// <param name="block"></param>
+        public static void WriteRawBlock(string basePath, byte[] rawBlock, DirectoryEntryBlock block)
+        {
+            string path = Path.Combine(basePath, block.FilePath);
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+
+            using var fs = new FileStream(path, FileMode.OpenOrCreate, FileAccess.Write, FileShare.Read, (int)block.TotalUncompressedSize);
+            fs.Write(rawBlock);
+        }
+
+        #endregion Writing
+
+        #region Decompression
+
+        /// <summary>
+        /// Decompresses the given blocks.
+        /// </summary>
+        /// <param name="blocks"></param>
+        /// <returns></returns>
+        public static IEnumerable<(byte[], DirectoryEntryBlock)> DecompressRawBlocks(IEnumerable<(byte[], DirectoryEntryBlock)> blocks)
+        {
+            foreach (var (rawBlock, block) in blocks)
+            {
+                DecompressRawBlock(rawBlock, block);
+                yield return (rawBlock, block);
+            }
+        }
+
+        /// <summary>
+        /// Decompresses the raw blocks in the given buffer of length <see cref="DirectoryEntryBlock.TotalUncompressedSize"/> into the same buffer.
+        /// </summary>
+        /// <param name="buffer"></param>
+        /// <param name="block"></param>
+        public static void DecompressRawBlock(Span<byte> buffer, DirectoryEntryBlock block)
+        {
+            int offset = 0;
+            foreach (var entry in block.Entries)
+            {
+                var entrySlice = buffer.Slice(offset, (int)entry.UncompressedSize);
+                if (entry.IsCompressed)
+                {
+                    DecompressRawEntry(entrySlice, (int)entry.CompressedSize);
+                }
+                offset += (int)entry.UncompressedSize;
+            }
+        }
+
+        /// <summary>
+        /// Decompresses a raw entry in the buffer of length <see cref="DirectoryEntry.UncompressedSize"/> into the same buffer.
+        /// </summary>
+        /// <param name="buffer"></param>
+        /// <param name="compressedSize"></param>
+        public static void DecompressRawEntry(Span<byte> buffer, int compressedSize)
+        {
+            var entrySlice = buffer.Slice(0, compressedSize);
+            Lzham.DecompressMemory(entrySlice.ToArray(), (ulong)buffer.Length).CopyTo(buffer);
+        }
+
+        #endregion Decompression
+    }
+
+    // Static Members - Asynchronous
+    public partial class Extractor
+    {
+        #region Reading
+
+        /// <summary>
+        /// Asynchronously reads the given blocks using the appropriate passed-in streams. Indices must match that of the initial file's <see cref="DirectoryFile.Archives"/>.
+        /// </summary>
+        /// <param name="archiveStreams"></param>
+        /// <param name="blocks"></param>
+        /// <returns></returns>
+        public static async IAsyncEnumerable<(byte[], DirectoryEntryBlock)> ReadRawBlocksAsync(
+            Stream[] archiveStreams,
+            IEnumerable<DirectoryEntryBlock> blocks,
+            IProgress<EntryOperation>? progress = null,
+            [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            foreach (var block in blocks)
+            {
+                byte[] buffer = new byte[block.TotalUncompressedSize];
+                await ReadRawBlockAsync(archiveStreams[block.ArchiveIndex], buffer, block, progress, cancellationToken);
+                yield return (buffer, block);
             }
         }
 
@@ -196,21 +309,63 @@ namespace UnoVPKTool.VPK
         }
 
         /// <summary>
-        /// Decompresses the raw blocks in the given buffer of length <see cref="DirectoryEntryBlock.TotalUncompressedSize"/> into the same buffer.
+        /// Asynchronously reads a raw entry from the stream at the specified offset into the given buffer.
         /// </summary>
+        /// <param name="archiveStream"></param>
         /// <param name="buffer"></param>
-        /// <param name="block"></param>
-        public static void DecompressRawBlock(Span<byte> buffer, DirectoryEntryBlock block)
+        /// <param name="entryOffset"></param>
+        /// <returns></returns>
+        public static async ValueTask ReadRawEntryAsync(
+            Stream archiveStream,
+            Memory<byte> buffer,
+            ulong entryOffset,
+            CancellationToken cancellationToken = default)
         {
-            int offset = 0;
-            foreach (var entry in block.Entries)
+            archiveStream.Seek((long)entryOffset, SeekOrigin.Begin);
+            await archiveStream.ReadAsync(buffer, cancellationToken);
+        }
+
+        #endregion Reading
+
+        #region Writing
+
+        /// <summary>
+        /// Asynchronously writes a raw block of data to a file, combining <paramref name="basePath"/> with block's <see cref="DirectoryEntryBlock.FilePath"/>. Directories will be created as necessary.
+        /// </summary>
+        /// <param name="basePath"></param>
+        /// <param name="rawBlock"></param>
+        /// <param name="block"></param>
+        public static async Task WriteRawBlockAsync(
+            string basePath,
+            byte[] rawBlock,
+            DirectoryEntryBlock block,
+            CancellationToken cancellationToken = default)
+        {
+            string path = Path.Combine(basePath, block.FilePath);
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+
+            using var fs = new FileStream(path, FileMode.OpenOrCreate, FileAccess.Write, FileShare.Read, (int)block.TotalUncompressedSize, true);
+            await fs.WriteAsync(rawBlock, cancellationToken);
+        }
+
+        #endregion Writing
+
+        #region Decompression
+
+        /// <summary>
+        /// Asynchronously decompresses the given blocks.
+        /// </summary>
+        /// <param name="blocks"></param>
+        /// <returns></returns>
+        public static async IAsyncEnumerable<(byte[], DirectoryEntryBlock)> DecompressRawBlocksAsync(
+            IAsyncEnumerable<(byte[], DirectoryEntryBlock)> blocks,
+            IProgress<EntryOperation>? progress = null,
+            [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            await foreach (var (rawBlock, block) in blocks.WithCancellation(cancellationToken))
             {
-                var entrySlice = buffer.Slice(offset, (int)entry.UncompressedSize);
-                if (entry.IsCompressed)
-                {
-                    DecompressRawEntry(entrySlice, (int)entry.CompressedSize);
-                }
-                offset += (int)entry.UncompressedSize;
+                await DecompressRawBlockAsync(rawBlock, block, progress, cancellationToken);
+                yield return (rawBlock, block);
             }
         }
 
@@ -242,81 +397,6 @@ namespace UnoVPKTool.VPK
         }
 
         /// <summary>
-        /// Writes a raw block of data to a file, combining <paramref name="basePath"/> with block's <see cref="DirectoryEntryBlock.FilePath"/>. Directories will be created as necessary.
-        /// </summary>
-        /// <param name="basePath"></param>
-        /// <param name="rawBlock"></param>
-        /// <param name="block"></param>
-        public static void WriteRawBlock(string basePath, byte[] rawBlock, DirectoryEntryBlock block)
-        {
-            string path = Path.Combine(basePath, block.FilePath);
-            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-
-            using var fs = new FileStream(path, FileMode.OpenOrCreate, FileAccess.Write, FileShare.Read, (int)block.TotalUncompressedSize);
-            fs.Write(rawBlock);
-        }
-
-        /// <summary>
-        /// Asynchronously writes a raw block of data to a file, combining <paramref name="basePath"/> with block's <see cref="DirectoryEntryBlock.FilePath"/>. Directories will be created as necessary.
-        /// </summary>
-        /// <param name="basePath"></param>
-        /// <param name="rawBlock"></param>
-        /// <param name="block"></param>
-        public static async Task WriteRawBlockAsync(
-            string basePath,
-            byte[] rawBlock,
-            DirectoryEntryBlock block,
-            CancellationToken cancellationToken = default)
-        {
-            string path = Path.Combine(basePath, block.FilePath);
-            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-
-            using var fs = new FileStream(path, FileMode.OpenOrCreate, FileAccess.Write, FileShare.Read, (int)block.TotalUncompressedSize, true);
-            await fs.WriteAsync(rawBlock, cancellationToken);
-        }
-
-        /// <summary>
-        /// Reads a raw entry from the stream at the specified offset into the given buffer.
-        /// </summary>
-        /// <param name="archiveStream"></param>
-        /// <param name="buffer"></param>
-        /// <param name="entryOffset"></param>
-        /// <returns></returns>
-        public static void ReadRawEntry(Stream archiveStream, Span<byte> buffer, ulong entryOffset)
-        {
-            archiveStream.Seek((long)entryOffset, SeekOrigin.Begin);
-            archiveStream.Read(buffer);
-        }
-
-        /// <summary>
-        /// Asynchronously reads a raw entry from the stream at the specified offset into the given buffer.
-        /// </summary>
-        /// <param name="archiveStream"></param>
-        /// <param name="buffer"></param>
-        /// <param name="entryOffset"></param>
-        /// <returns></returns>
-        public static async ValueTask ReadRawEntryAsync(
-            Stream archiveStream,
-            Memory<byte> buffer,
-            ulong entryOffset,
-            CancellationToken cancellationToken = default)
-        {
-            archiveStream.Seek((long)entryOffset, SeekOrigin.Begin);
-            await archiveStream.ReadAsync(buffer, cancellationToken);
-        }
-
-        /// <summary>
-        /// Decompresses a raw entry in the buffer of length <see cref="DirectoryEntry.UncompressedSize"/> into the same buffer.
-        /// </summary>
-        /// <param name="buffer"></param>
-        /// <param name="compressedSize"></param>
-        public static void DecompressRawEntry(Span<byte> buffer, int compressedSize)
-        {
-            var entrySlice = buffer.Slice(0, compressedSize);
-            Lzham.DecompressMemory(entrySlice.ToArray(), (ulong)buffer.Length).CopyTo(buffer);
-        }
-
-        /// <summary>
         /// Asynchronously decompresses a raw entry in the buffer of length <see cref="DirectoryEntry.UncompressedSize"/> into the same buffer.
         /// </summary>
         /// <param name="buffer"></param>
@@ -329,6 +409,8 @@ namespace UnoVPKTool.VPK
             var entrySlice = buffer.Slice(0, compressedSize);
             await Task.Run(() => Lzham.DecompressMemory(entrySlice.ToArray(), (ulong)buffer.Length).CopyTo(buffer), cancellationToken);
         }
+
+        #endregion Decompression
     }
 
     public readonly struct EntryOperation
