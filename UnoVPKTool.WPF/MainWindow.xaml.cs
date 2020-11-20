@@ -51,7 +51,10 @@ namespace UnoVPKTool.WPF
             if (openFileDialog.ShowDialog() == true)
             {
                 vm.OpenVPKCommand.Execute(openFileDialog.FileName);
-                Title = MainTitle + " - " + Path.GetFileName(openFileDialog.FileName);
+                if (vm.OpenedVPK is not null)
+                {
+                    Title = MainTitle + " - " + Path.GetFileName(openFileDialog.FileName);
+                }
             }
         }
 

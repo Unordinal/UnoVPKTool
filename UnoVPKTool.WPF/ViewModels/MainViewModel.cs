@@ -1,14 +1,11 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
 using UnoVPKTool.Exceptions;
 using UnoVPKTool.VPK;
 using UnoVPKTool.WPF.Commands;
+using UnoVPKTool.WPF.Logging;
 
 namespace UnoVPKTool.WPF.ViewModels
 {
@@ -17,7 +14,11 @@ namespace UnoVPKTool.WPF.ViewModels
         private readonly StringWriterExt _sw = new StringWriterExt(true);
         private string _consoleOut = string.Empty;
 
+        public Logger Logger { get; }
+
         public ICommand OpenVPKCommand { get; }
+
+        public DirectoryFile? OpenedVPK { get; private set; }
 
         public string ConsoleOut
         {
@@ -30,8 +31,12 @@ namespace UnoVPKTool.WPF.ViewModels
             Console.SetOut(_sw);
             Console.SetError(_sw);
             _sw.Flushed += (s, e) => ConsoleOut = _sw.ToString();
+            Logger = new Logger();
 
-            OpenVPKCommand = new RelayCommand<string>(OpenVPK, (p) => File.Exists(p));
+            OpenVPKCommand = new RelayCommand<string>(OpenVPK);
+
+            Logger.LogDebug("Test debug.");
+            Logger.LogError("Test error.");
         }
 
         private void OpenVPK(string filePath)
@@ -57,8 +62,8 @@ namespace UnoVPKTool.WPF.ViewModels
 
             try
             {
-                DirectoryFile vpkDir = new DirectoryFile(filePath);
-                Console.WriteLine($"Loaded VPK directory file: '{filePath}'");
+                OpenedVPK = new DirectoryFile(filePath);
+                Console.WriteLine($"Loaded VPK: '{filePath}'");
             }
             catch (InvalidVPKFileException ex)
             {

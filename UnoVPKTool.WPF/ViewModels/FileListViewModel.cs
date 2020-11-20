@@ -16,7 +16,7 @@ namespace UnoVPKTool.WPF.ViewModels
     {
         public ICommand FitColumnCommand { get; }
         public ICommand FitAllColumnsCommand { get; }
-        public FileItemModel[] TestFiles { get; } = { new FileItemModel("path/to/file1", "File 1", 24), new FileItemModel("path/to/a/nother/file", "File 2", 1337) };
+        public FileItemModel[] TestFiles { get; } = { new FileItemModel("path/to/file1", 24), new FileItemModel("path/to/a/nother/file", 1337) };
 
         public FileListViewModel()
         {

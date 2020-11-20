@@ -1,7 +1,7 @@
 ﻿namespace UnoVPKTool.WPF.Models
 {
-    public record FileItemModel(string Path, string Name, int Size) : ItemModel(Path, Name, Size)
+    public class FileItemModel : ItemModel
     {
-        public string Extension => System.IO.Path.GetExtension(Path);
+        public FileItemModel(string path, int size) : base(path, size) { }
     }
 }
