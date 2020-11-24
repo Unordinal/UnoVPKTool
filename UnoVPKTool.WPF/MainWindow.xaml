@@ -4,6 +4,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:UnoVPKTool.WPF"
+        xmlns:models="clr-namespace:UnoVPKTool.WPF.Models"
         mc:Ignorable="d"
         Title="Uno VPK Tool" Height="450" Width="800">
     <Grid>
@@ -31,12 +32,12 @@
                     <ColumnDefinition Width="auto"/>
                     <ColumnDefinition Width="*" MinWidth="150"/>
                 </Grid.ColumnDefinitions>
-                <TreeView>
-                    <TreeViewItem Header="Test"/>
-                    <TreeViewItem Header="Test"/>
-                    <TreeViewItem Header="Test">
-                        <TreeViewItem Header="Test2"/>
-                    </TreeViewItem>
+                <TreeView x:Name="TreeView" ItemsSource="{Binding BlockFileModels}">
+                    <TreeView.ItemTemplate>
+                        <HierarchicalDataTemplate ItemsSource="{Binding Items}" DataType="{x:Type models:IItemModel}">
+                            <TextBlock Text="{Binding Name}"/>
+                        </HierarchicalDataTemplate>
+                    </TreeView.ItemTemplate>
                 </TreeView>
                 <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Stretch"/>
                 <ListView x:Name="FileListView" Grid.Column="2" ItemsSource="{Binding TestFiles}">

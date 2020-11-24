@@ -20,7 +20,12 @@ namespace UnoVPKTool.WPF.Logging
         private void InitForFirstLog()
         {
             _wasWrittenTo = true;
-            bool fileExisted = File.Exists(LogFileName);
+            bool fileExisted = File.Exists(LogFileName); // Mainly used as a quick way to tell if there's a log already existing. If one does, we assume it has at least one entry.
+            if (fileExisted && new FileInfo(LogFileName).Length > 2000000) // Over 2 MB.
+            {
+                File.WriteAllBytes(LogFileName, Array.Empty<byte>());
+                fileExisted = false; // No entries now!
+            }
 
             using var writer = File.AppendText(LogFileName);
             string timestamp = DateTimeOffset.UtcNow.ToString("u");

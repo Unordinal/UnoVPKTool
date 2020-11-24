@@ -1,19 +1,14 @@
-﻿namespace UnoVPKTool.WPF.Models
+﻿using UnoVPKTool.VPK;
+
+namespace UnoVPKTool.WPF.Models
 {
     public class BlockFileItemModel : FileItemModel
     {
-        public string ArchivePath { get; set; }
+        public DirectoryEntryBlock Block { get; set; }
 
-        public int CompressedSize { get; set; }
-
-        public bool IsCompressed => Size != CompressedSize;
-
-        public BlockFileItemModel(string path, int size, string archivePath, int compressedSize) : base(path, size)
+        public BlockFileItemModel(string path, DirectoryEntryBlock block) : base(path, (int)block.TotalUncompressedSize)
         {
-            ArchivePath = archivePath;
-            CompressedSize = compressedSize;
+            Block = block;
         }
-
-        public BlockFileItemModel(string path, int size, string archivePath) : this(path, size, archivePath, -1) { }
     }
 }
