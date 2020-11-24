@@ -5,6 +5,8 @@ The WPF app is currently a non-thing.
 
 ### Compiling
 
+Dev branch is unstable and/or uncompilable sometimes.
+
 Compiles for .NET 5.0.
 
 For the [Tests](UnoVPKTool.Tests), a folder named `TestFiles` is required in its directory, with at least `englishclient_frontend.bsp.pak000_dir.vpk` available in it. A few offsets in the test file are hardcoded at the moment, so if the game updates they may stop working.
