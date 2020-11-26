@@ -54,5 +54,14 @@ namespace LzhamWrapper.Decompression
         {
             m_struct_size = (uint)sizeof(DecompressionParameters);
         }
+
+        public override string ToString()
+        {
+            return
+                $"{m_struct_size}\n" +
+                $"{m_dict_size_log2}\n" +
+                $"{m_decompress_flags}\n" +
+                $"{m_num_seed_bytes}";
+        }
     }
 }

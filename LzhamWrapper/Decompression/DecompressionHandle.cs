@@ -7,15 +7,14 @@ namespace LzhamWrapper.Decompression
     {
         public DecompressionHandle() : base(true) { }
 
-        public uint Finish()
+        public uint Deinit()
         {
-            handle = IntPtr.Zero;
-            return Lzham.DecompressDeinit(handle);
+            return Lzham.DecompressDeinit(this);
         }
 
         protected override bool ReleaseHandle()
         {
-            Finish();
+            Deinit();
             return true;
         }
     }

@@ -12,10 +12,10 @@ namespace UnoVPKTool
 
         public static byte[] DecompressMemory(byte[] compressedBytes, ulong uncompressedSize)
         {
-            UIntPtr compressedLength = new UIntPtr((uint)compressedBytes.Length);
+            IntPtr compressedLength = new IntPtr((uint)compressedBytes.Length);
 
             byte[] decompressedBytes = new byte[uncompressedSize];
-            UIntPtr decompressedLength = new UIntPtr(uncompressedSize);
+            IntPtr decompressedLength = new IntPtr((long)uncompressedSize);
 
             uint adler32 = 0;
 
@@ -27,7 +27,7 @@ namespace UnoVPKTool
             {
                 throw new Exception("Lzham.DecompressMemory failed. Status: " + result.ToString());
             }
-            if (decompressedLength.ToUInt64() != uncompressedSize)
+            if (decompressedLength.ToInt64() != (long)uncompressedSize)
             {
                 throw new Exception($"Data length mismatch: {decompressedLength} vs {uncompressedSize}");
             }

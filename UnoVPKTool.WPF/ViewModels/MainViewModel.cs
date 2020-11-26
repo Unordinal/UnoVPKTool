@@ -63,8 +63,8 @@ namespace UnoVPKTool.WPF.ViewModels
             if (OpenedVPK is null) return;
 
             BlockFileModels.Clear();
-            DirectoryItemModel rootDir = CreateDirectories(OpenedVPK.EntryBlocks);
-            BlockFileModels.Add(rootDir);
+            //DirectoryItemModel rootDir = CreateDirectories(OpenedVPK.EntryBlocks);
+            //BlockFileModels.Add(rootDir);
         }
 
         /*/// <summary>

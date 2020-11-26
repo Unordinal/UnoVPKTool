@@ -1,5 +1,4 @@
-﻿using System;
-using Microsoft.Win32.SafeHandles;
+﻿using Microsoft.Win32.SafeHandles;
 
 namespace LzhamWrapper.Compression
 {
@@ -7,15 +6,14 @@ namespace LzhamWrapper.Compression
     {
         public CompressionHandle() : base(true) { }
 
-        public uint Finish()
+        public uint Deinit()
         {
-            handle = IntPtr.Zero;
-            return Lzham.CompressDeinit(handle);
+            return Lzham.CompressDeinit(this);
         }
 
         protected override bool ReleaseHandle()
         {
-            Finish();
+            Deinit();
             return true;
         }
     }

@@ -19,8 +19,7 @@ namespace LzhamWrapper
         public static unsafe CompressionHandle CompressInit(CompressionParameters parameters)
         {
             parameters.Initialize();
-            byte* pBytes = (byte*)&parameters;
-            return lzham_compress_init(pBytes);
+            return lzham_compress_init(ref parameters);
         }
 
         public static CompressionHandle CompressReinit(CompressionHandle state)
@@ -28,57 +27,43 @@ namespace LzhamWrapper
             return lzham_compress_reinit(state);
         }
 
-        public static unsafe CompressStatus Compress(CompressionHandle state, byte[] inBuf, ref int inBufSize, int inBufOffset, byte[] outBuf, ref int outBufSize, int outBufOffset, bool noMoreInputBytesFlag)
+        public static unsafe CompressStatus Compress(CompressionHandle state, ReadOnlySpan<byte> inBuf, ref IntPtr inBufSize, int inBufOffset, Span<byte> outBuf, ref IntPtr outBufSize, int outBufOffset, bool noMoreInputBytesFlag)
         {
-            if (inBufOffset + inBufSize > inBuf.Length) throw new ArgumentOutOfRangeException(nameof(inBuf), "Offset + Size is larger than the length of the array.");
-            if (outBufOffset + outBufSize > outBuf.Length) throw new ArgumentOutOfRangeException(nameof(outBuf), "Offset + Size is larger than the length of the array.");
+            if (inBufOffset + inBufSize.ToInt64() > inBuf.Length) throw new ArgumentOutOfRangeException(nameof(inBuf), "Offset + Size is larger than the length of the array.");
+            if (outBufOffset + outBufSize.ToInt64() > outBuf.Length) throw new ArgumentOutOfRangeException(nameof(outBuf), "Offset + Size is larger than the length of the array.");
 
             fixed (byte* inBytes = inBuf, outBytes = outBuf)
             {
-                IntPtr inSize = new IntPtr(inBufSize);
-                IntPtr outSize = new IntPtr(outBufSize);
-                CompressStatus result = (CompressStatus)lzham_compress(state, inBytes + inBufOffset, ref inSize, outBytes + outBufOffset, ref outSize, noMoreInputBytesFlag ? 1 : 0);
-                inBufSize = inSize.ToInt32();
-                outBufSize = outSize.ToInt32();
-                return result;
+                return lzham_compress(state, inBytes + inBufOffset, ref inBufSize, outBytes + outBufOffset, ref outBufSize, noMoreInputBytesFlag ? 1 : 0);
             }
         }
 
-        public static unsafe CompressStatus Compress2(CompressionHandle state, byte[] inBuf, ref int inBufSize, int inBufOffset, byte[] outBuf, ref int outBufSize, int outBufOffset, Flush flushType)
+        public static unsafe CompressStatus Compress2(CompressionHandle state, ReadOnlySpan<byte> inBuf, ref IntPtr inBufSize, int inBufOffset, Span<byte> outBuf, ref IntPtr outBufSize, int outBufOffset, Flush flushType)
         {
-            if (inBufOffset + inBufSize > inBuf.Length) throw new ArgumentOutOfRangeException(nameof(inBuf), "Offset + Size is larger than the length of the array.");
-            if (outBufOffset + outBufSize > outBuf.Length) throw new ArgumentOutOfRangeException(nameof(outBuf), "Offset + Size is larger than the length of the array.");
+            if (inBufOffset + inBufSize.ToInt64() > inBuf.Length) throw new ArgumentOutOfRangeException(nameof(inBuf), "Offset + Size is larger than the length of the array.");
+            if (outBufOffset + outBufSize.ToInt64() > outBuf.Length) throw new ArgumentOutOfRangeException(nameof(outBuf), "Offset + Size is larger than the length of the array.");
 
             fixed (byte* inBytes = inBuf, outBytes = outBuf)
             {
-                IntPtr inSize = new IntPtr(inBufSize);
-                IntPtr outSize = new IntPtr(outBufSize);
-                CompressStatus result = (CompressStatus)lzham_compress2(state, inBytes + inBufOffset, ref inSize, outBytes + outBufOffset, ref outSize, flushType);
-                inBufSize = inSize.ToInt32();
-                outBufSize = outSize.ToInt32();
-                return result;
+                return lzham_compress2(state, inBytes + inBufOffset, ref inBufSize, outBytes + outBufOffset, ref outBufSize, flushType);
             }
         }
 
-        public static unsafe CompressStatus CompressMemory(CompressionParameters parameters, byte[] inBuf, ref int inBufSize, int inBufOffset, byte[] outBuf, ref int outBufSize, int outBufOffset, ref uint adler32)
+        public static unsafe CompressStatus CompressMemory(CompressionParameters parameters, ReadOnlySpan<byte> inBuf, IntPtr inBufSize, int inBufOffset, Span<byte> outBuf, ref IntPtr outBufSize, int outBufOffset, ref uint adler32)
         {
-            if (inBufOffset + inBufSize > inBuf.Length) throw new ArgumentOutOfRangeException(nameof(inBuf), "Offset + Size is larger than the length of the array.");
-            if (outBufOffset + outBufSize > outBuf.Length) throw new ArgumentOutOfRangeException(nameof(outBuf), "Offset + Size is larger than the length of the array.");
+            if (inBufOffset + inBufSize.ToInt64() > inBuf.Length) throw new ArgumentOutOfRangeException(nameof(inBuf), "Offset + Size is larger than the length of the array.");
+            if (outBufOffset + outBufSize.ToInt64() > outBuf.Length) throw new ArgumentOutOfRangeException(nameof(outBuf), "Offset + Size is larger than the length of the array.");
 
             parameters.Initialize();
             fixed (byte* inBytes = inBuf, outBytes = outBuf)
             {
-                byte* pBytes = (byte*)&parameters;
-                IntPtr outSize = new IntPtr(outBufSize);
-                CompressStatus result = (CompressStatus)lzham_compress_memory(pBytes, outBytes + outBufOffset, ref outSize, inBytes + inBufOffset, inBufSize, ref adler32);
-                outBufSize = outSize.ToInt32();
-                return result;
+                return lzham_compress_memory(ref parameters, outBytes + outBufOffset, ref outBufSize, inBytes + inBufOffset, inBufSize, ref adler32);
             }
         }
 
-        public static uint CompressDeinit(IntPtr state)
+        public static uint CompressDeinit(CompressionHandle state)
         {
-            return (uint)lzham_compress_deinit(state);
+            return lzham_compress_deinit(state);
         }
 
         #endregion Compression
@@ -88,50 +73,43 @@ namespace LzhamWrapper
         public static unsafe DecompressionHandle DecompressInit(DecompressionParameters parameters)
         {
             parameters.Initialize();
-            byte* pBytes = (byte*)&parameters;
-            return lzham_decompress_init(pBytes);
+            return lzham_decompress_init(ref parameters);
         }
 
         public static unsafe DecompressionHandle DecompressReinit(DecompressionHandle state, DecompressionParameters parameters)
         {
             parameters.Initialize();
-            byte* pBytes = (byte*)&parameters;
-            return lzham_decompress_reinit(state, pBytes);
+            return lzham_decompress_reinit(state, ref parameters);
         }
 
-        public static unsafe DecompressStatus Decompress(DecompressionHandle state, byte[] inBuf, ref int inBufSize, int inBufOffset, byte[] outBuf, ref int outBufSize, int outBufOffset, bool noMoreInputBytesFlag)
+        public static unsafe DecompressStatus Decompress(DecompressionHandle state, byte[] inBuf, ref IntPtr inBufSize, int inBufOffset, byte[] outBuf, ref IntPtr outBufSize, int outBufOffset, bool noMoreInputBytesFlag)
         {
-            if (inBufOffset + inBufSize > inBuf.Length) throw new ArgumentOutOfRangeException(nameof(inBuf), "Offset + Size is larger than the length of the array.");
-            if (outBufOffset + outBufSize > outBuf.Length) throw new ArgumentOutOfRangeException(nameof(outBuf), "Offset + Size is larger than the length of the array.");
+            if (inBufOffset + inBufSize.ToInt64() > inBuf.Length) throw new ArgumentOutOfRangeException(nameof(inBuf), "Offset + Size is larger than the length of the array.");
+            if (outBufOffset + outBufSize.ToInt64() > outBuf.Length) throw new ArgumentOutOfRangeException(nameof(outBuf), "Offset + Size is larger than the length of the array.");
 
             fixed (byte* inBytes = inBuf, outBytes = outBuf)
             {
-                IntPtr inSize = new IntPtr(inBufSize);
-                IntPtr outSize = new IntPtr(outBufSize);
-                DecompressStatus result = (DecompressStatus)lzham_decompress(state, inBytes + inBufOffset, ref inSize, outBytes + outBufOffset, ref outSize, noMoreInputBytesFlag ? 1 : 0);
-                inBufSize = inSize.ToInt32();
-                outBufSize = outSize.ToInt32();
+                DecompressStatus result = lzham_decompress(state, inBytes + inBufOffset, ref inBufSize, outBytes + outBufOffset, ref outBufSize, noMoreInputBytesFlag ? 1 : 0);
                 return result;
             }
         }
 
-        public static unsafe DecompressStatus DecompressMemory(DecompressionParameters parameters, byte[] inBuf, ref UIntPtr inBufSize, int inBufOffset, byte[] outBuf, ref UIntPtr outBufSize, int outBufOffset, ref uint adler32)
+        public static unsafe DecompressStatus DecompressMemory(DecompressionParameters parameters, byte[] inBuf, ref IntPtr inBufSize, int inBufOffset, byte[] outBuf, ref IntPtr outBufSize, int outBufOffset, ref uint adler32)
         {
-            if (inBufOffset + inBufSize.ToUInt32() > inBuf.Length) throw new ArgumentOutOfRangeException(nameof(inBuf), "Offset + Size is larger than the length of the array.");
-            if (outBufOffset + outBufSize.ToUInt32() > outBuf.Length) throw new ArgumentOutOfRangeException(nameof(outBuf), "Offset + Size is larger than the length of the array.");
+            if (inBufOffset + inBufSize.ToInt64() > inBuf.Length) throw new ArgumentOutOfRangeException(nameof(inBuf), "Offset + Size is larger than the length of the array.");
+            if (outBufOffset + outBufSize.ToInt64() > outBuf.Length) throw new ArgumentOutOfRangeException(nameof(outBuf), "Offset + Size is larger than the length of the array.");
 
             parameters.Initialize();
             fixed (byte* inBytes = inBuf, outBytes = outBuf)
             {
-                byte* pBytes = (byte*)&parameters;
-                DecompressStatus result = (DecompressStatus)lzham_decompress_memory(pBytes, outBytes + outBufOffset, ref outBufSize, inBytes + inBufOffset, inBufSize, ref adler32);
+                DecompressStatus result = lzham_decompress_memory(ref parameters, outBytes + outBufOffset, ref outBufSize, inBytes + inBufOffset, inBufSize, ref adler32);
                 return result;
             }
         }
 
-        public static uint DecompressDeinit(IntPtr state)
+        public static uint DecompressDeinit(DecompressionHandle state)
         {
-            return (uint)lzham_decompress_deinit(state);
+            return lzham_decompress_deinit(state);
         }
 
         #endregion Decompression
@@ -144,19 +122,19 @@ namespace LzhamWrapper
         private static extern uint lzham_get_version();
 
         [DllImport(LzhamDll, CallingConvention = CallingConvention.Cdecl)]
-        private static extern unsafe CompressionHandle lzham_compress_init(byte* parameters);
+        private static extern CompressionHandle lzham_compress_init(ref CompressionParameters parameters);
 
         [DllImport(LzhamDll, CallingConvention = CallingConvention.Cdecl)]
         private static extern CompressionHandle lzham_compress_reinit(CompressionHandle state);
 
         [DllImport(LzhamDll, CallingConvention = CallingConvention.Cdecl)]
-        private static extern unsafe int lzham_compress(CompressionHandle state, byte* inBuf, ref IntPtr inBufSize, byte* outBuf, ref IntPtr outBufSize, int noMoreInputBytesFlag);
+        private static extern unsafe CompressStatus lzham_compress(CompressionHandle state, byte* inBuf, ref IntPtr inBufSize, byte* outBuf, ref IntPtr outBufSize, byte noMoreInputBytesFlag);
 
         [DllImport(LzhamDll, CallingConvention = CallingConvention.Cdecl)]
-        private static extern unsafe int lzham_compress2(CompressionHandle state, byte* inBuf, ref IntPtr inBufSize, byte* outBuf, ref IntPtr outBufSize, Flush flushType);
+        private static extern unsafe CompressStatus lzham_compress2(CompressionHandle state, byte* inBuf, ref IntPtr inBufSize, byte* outBuf, ref IntPtr outBufSize, Flush flushType);
 
         [DllImport(LzhamDll, CallingConvention = CallingConvention.Cdecl)]
-        private static extern unsafe int lzham_compress_memory(byte* parameters, byte* dstBuffer, ref IntPtr dstLength, byte* srcBuffer, int srcLength, ref uint adler32);
+        private static extern unsafe CompressStatus lzham_compress_memory(ref CompressionParameters parameters, byte* dstBuffer, ref IntPtr dstLength, byte* srcBuffer, IntPtr srcLength, ref uint adler32);
 
         /// <summary>
         /// Deinitializes a compressor, releasing all allocated memory.
@@ -164,7 +142,7 @@ namespace LzhamWrapper
         /// <param name="state"></param>
         /// <returns>Adler32 of source data (only valid on success).</returns>
         [DllImport(LzhamDll, CallingConvention = CallingConvention.Cdecl)]
-        private static extern int lzham_compress_deinit(IntPtr state);
+        private static extern uint lzham_compress_deinit(CompressionHandle state);
 
         /// <summary>
         /// Initializes a decompressor.
@@ -172,19 +150,19 @@ namespace LzhamWrapper
         /// <param name="parameters"></param>
         /// <returns></returns>
         [DllImport(LzhamDll, CallingConvention = CallingConvention.Cdecl)]
-        private static extern unsafe DecompressionHandle lzham_decompress_init(byte* parameters);
+        private static extern unsafe DecompressionHandle lzham_decompress_init(ref DecompressionParameters parameters);
 
         [DllImport(LzhamDll, CallingConvention = CallingConvention.Cdecl)]
-        private static extern unsafe DecompressionHandle lzham_decompress_reinit(DecompressionHandle state, byte* parameters);
+        private static extern unsafe DecompressionHandle lzham_decompress_reinit(DecompressionHandle state, ref DecompressionParameters parameters);
 
         [DllImport(LzhamDll, CallingConvention = CallingConvention.Cdecl)]
-        private static extern unsafe int lzham_decompress(DecompressionHandle state, byte* inBuf, ref IntPtr inBufSize, byte* outBuf, ref IntPtr outBufSize, int noMoreInputBytesFlag);
+        private static extern unsafe DecompressStatus lzham_decompress(DecompressionHandle state, byte* inBuf, ref IntPtr inBufSize, byte* outBuf, ref IntPtr outBufSize, byte noMoreInputBytesFlag);
 
         [DllImport(LzhamDll, CallingConvention = CallingConvention.Cdecl)]
-        private static extern unsafe int lzham_decompress_memory(byte* parameters, byte* dstBuffer, ref UIntPtr dstLength, byte* srcBuffer, UIntPtr srcLength, ref uint adler32);
+        private static extern unsafe DecompressStatus lzham_decompress_memory(ref DecompressionParameters parameters, byte* dstBuffer, ref IntPtr dstLength, byte* srcBuffer, IntPtr srcLength, ref uint adler32);
 
         [DllImport(LzhamDll, CallingConvention = CallingConvention.Cdecl)]
-        private static extern int lzham_decompress_deinit(IntPtr state);
+        private static extern uint lzham_decompress_deinit(DecompressionHandle state);
 
 #pragma warning restore IDE1006 // Naming Styles
 
