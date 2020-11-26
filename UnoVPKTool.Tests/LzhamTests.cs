@@ -15,7 +15,7 @@ namespace UnoVPKTool.Tests
     [TestClass]
     public class LzhamTests
     {
-        public const int TestRawDataBufferSize = 128;
+        public const int TestRawDataBufferSize = 256;
         public const string TestString = "Hello World! This is a test string to see if lzham methods are performed correctly.";
         public static readonly byte[] TestUncompressedData = Encoding.ASCII.GetBytes(TestString);
         public static readonly byte[] TestCompressedData =
@@ -104,16 +104,14 @@ namespace UnoVPKTool.Tests
 
             byte[] buffer = new byte[TestRawDataBufferSize];
             var decompParams = new DecompressionParameters { DictionarySize = 20 };
-            
 
             Stopwatch sw = Stopwatch.StartNew();
-            using (var lzham = new LzhamStream(new MemoryStream(TestCompressedData), decompParams))
+            
+            using var lzham = new LzhamStream(new MemoryStream(TestCompressedData), decompParams);
+            for (int i = 0; i < Iterations; i++)
             {
-                for (int i = 0; i < Iterations; i++)
-                {
-                    lzham.Seek(0, SeekOrigin.Begin);
-                    lzham.Read(buffer, 0, TestCompressedData.Length);
-                }
+                lzham.Seek(0, SeekOrigin.Begin);
+                lzham.Read(buffer, 0, TestCompressedData.Length);
             }
             sw.Stop();
             Debug.WriteLine("Block by block: " + sw.Elapsed);

@@ -5,6 +5,7 @@ using System.IO;
 using LzhamWrapper.Compression;
 using LzhamWrapper.Decompression;
 using LzhamWrapper.Exceptions;
+using Microsoft.Win32.SafeHandles;
 
 namespace LzhamWrapper
 {
@@ -114,19 +115,6 @@ namespace LzhamWrapper
         }
 
         /// <summary>
-        /// If this stream was initialized with compression parameters, manually reinitializes the underlying Lzham compressor. This is done automatically when needed, but you can manually use it here.
-        /// </summary>
-        /// <exception cref="NotSupportedException"/>
-        /// <exception cref="LzhamException"/>
-        public void Reinit()
-        {
-            CheckCompressionSupported();
-            _compressionHandle = Lzham.CompressReinit(_compressionHandle);
-
-            if (_compressionHandle.IsInvalid) throw new LzhamException("Failed reinitializing the compressor.");
-        }
-
-        /// <summary>
         /// If this stream was initialized with compression parameters, manually reinitializes the underlying Lzham compressor using the given parameters. This is done automatically when needed, but you can manually use it here.
         /// <br/>
         /// NOTE: This does a full initialization by calling <see cref="Lzham.CompressInit(ref CompressionParameters)"/> as the reinitialization method does not support taking in new parameters!
@@ -136,7 +124,12 @@ namespace LzhamWrapper
         public void Reinit(CompressionParameters compressionParameters)
         {
             CheckCompressionSupported();
-            _compressionHandle = Lzham.CompressInit(compressionParameters);
+            var newHandle = Lzham.CompressInit(compressionParameters);
+            if (_compressionHandle.DangerousGetHandle() != newHandle.DangerousGetHandle())
+                _compressionHandle.Deinit();
+
+            _compressionHandle = newHandle;
+            _compressionNeedsReinit = false;
 
             if (_compressionHandle.IsInvalid) throw new LzhamException(string.Format(TmplReinitInvalidParams, "compressor"));
         }
@@ -151,8 +144,49 @@ namespace LzhamWrapper
         {
             CheckDecompressionSupported();
 
-            _decompressionHandle = Lzham.DecompressReinit(_decompressionHandle, decompressionParameters);
+            var newHandle = Lzham.DecompressReinit(_decompressionHandle, decompressionParameters);
+            _decompressionHandle.Deinit();
+            _decompressionHandle = newHandle;
             _decompressionParameters = decompressionParameters;
+            _decompressionNeedsReinit = false;
+
+            if (_decompressionHandle.IsInvalid) throw new LzhamException(string.Format(TmplReinitInvalidParams, "decompressor"));
+        }
+
+        /// <summary>
+        /// If this stream was initialized with compression parameters, manually reinitializes the underlying Lzham compressor. This is done automatically when needed, but you can manually use it here.
+        /// </summary>
+        /// <exception cref="NotSupportedException"/>
+        /// <exception cref="LzhamException"/>
+        public void ReinitCompression()
+        {
+            CheckCompressionSupported();
+
+            var newHandle = Lzham.CompressReinit(_compressionHandle);
+            if (_compressionHandle.DangerousGetHandle() != newHandle.DangerousGetHandle())
+                _compressionHandle.Deinit();
+
+            _compressionHandle = newHandle;
+            _compressionNeedsReinit = false;
+
+            if (_compressionHandle.IsInvalid) throw new LzhamException("Failed reinitializing the compressor.");
+        }
+
+        /// <summary>
+        /// If this stream was initialized with decompression parameters, manually reinitializes the underlying Lzham decompressor. This is done automatically when needed, but you can manually use it here.
+        /// </summary>
+        /// <exception cref="NotSupportedException"/>
+        /// <exception cref="LzhamException"/>
+        public void ReinitDecompression()
+        {
+            CheckDecompressionSupported();
+
+            var newHandle = Lzham.DecompressReinit(_decompressionHandle, _decompressionParameters);
+            if (_decompressionHandle.DangerousGetHandle() != newHandle.DangerousGetHandle())
+                _decompressionHandle.Deinit();
+
+            _decompressionHandle = newHandle;
+            _decompressionNeedsReinit = false;
 
             if (_decompressionHandle.IsInvalid) throw new LzhamException(string.Format(TmplReinitInvalidParams, "decompressor"));
         }
@@ -173,7 +207,7 @@ namespace LzhamWrapper
             if (offset < 0 || (buffer.Length - offset < count)) throw new ArgumentOutOfRangeException(nameof(offset));
 
             CheckDecompressionSupported();
-            if (_decompressionNeedsReinit) Reinit(_decompressionParameters);
+            if (_decompressionNeedsReinit) ReinitDecompression();
 
             int totalBytesRead = 0;
             int totalDecompressedBytes = 0;
@@ -237,7 +271,7 @@ namespace LzhamWrapper
             if (offset < 0 || (buffer.Length - offset < count)) throw new ArgumentOutOfRangeException(nameof(offset));
 
             CheckCompressionSupported();
-            if (_compressionNeedsReinit) Reinit();
+            if (_compressionNeedsReinit) ReinitCompression();
 
             int totalCompressedBytes = 0;
             int bytesLeftFromBuffer = count;
@@ -321,25 +355,15 @@ namespace LzhamWrapper
         /// <returns></returns>
         public void Deinit(out uint? compressionAdler32, out uint? decompressionAdler32)
         {
-            compressionAdler32 = null;
-            decompressionAdler32 = null;
-
-            if (_compressionHandle?.IsInvalid == false)
-            {
-                compressionAdler32 = _compressionHandle.Deinit();
-            }
-            if (_decompressionHandle?.IsInvalid == false)
-            {
-                decompressionAdler32 = _decompressionHandle.Deinit();
-            }
+            compressionAdler32 = _compressionHandle?.Deinit();
+            decompressionAdler32 = _decompressionHandle?.Deinit();
         }
 
         protected override void Dispose(bool disposing)
         {
             if (disposing)
             {
-                _compressionHandle?.Deinit();
-                _decompressionHandle?.Deinit();
+                Deinit(out _, out _);
                 if (!_leaveOpen) _baseStream?.Dispose();
             }
         }

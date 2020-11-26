@@ -6,9 +6,9 @@ namespace LzhamWrapper.Compression
     {
         public CompressionHandle() : base(true) { }
 
-        public uint Deinit()
+        public uint? Deinit()
         {
-            return Lzham.CompressDeinit(this);
+            return (!IsClosed && !IsInvalid) ? Lzham.CompressDeinit(this) : null;
         }
 
         protected override bool ReleaseHandle()

@@ -1,5 +1,4 @@
-﻿using System;
-using Microsoft.Win32.SafeHandles;
+﻿using Microsoft.Win32.SafeHandles;
 
 namespace LzhamWrapper.Decompression
 {
@@ -7,9 +6,9 @@ namespace LzhamWrapper.Decompression
     {
         public DecompressionHandle() : base(true) { }
 
-        public uint Deinit()
+        public uint? Deinit()
         {
-            return Lzham.DecompressDeinit(this);
+            return (!IsClosed && !IsInvalid) ? Lzham.DecompressDeinit(this) : null;
         }
 
         protected override bool ReleaseHandle()
