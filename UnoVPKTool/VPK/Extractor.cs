@@ -5,6 +5,8 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
+using LzhamWrapper;
+using LzhamWrapper.Decompression;
 
 namespace UnoVPKTool.VPK
 {
@@ -25,6 +27,7 @@ namespace UnoVPKTool.VPK
     {
         private readonly FileStream[] _archiveStreams;
         private readonly DirectoryFile _file;
+        private readonly Decompressor _decompressor;
 
         public Extractor(DirectoryFile file, bool useAsync = false)
         {
@@ -35,6 +38,8 @@ namespace UnoVPKTool.VPK
             }
 
             _file = file;
+            var parameters = new DecompressionParameters { DictionarySize = Lzham.ApexDictSize, Flags = DecompressionFlags.OutputUnbuffered };
+            _decompressor = new Decompressor(parameters);
         }
 
         public void Dispose()
@@ -43,6 +48,7 @@ namespace UnoVPKTool.VPK
             {
                 _archiveStreams[i].Dispose();
             }
+            _decompressor.Dispose();
         }
 
         /// <summary>
@@ -66,6 +72,23 @@ namespace UnoVPKTool.VPK
             {
                 WriteRawBlock(basePath, rawBlock, block);
             }
+        }
+
+        public void ExtractAllStream(string basePath)
+        {
+            var lzhamStreams = new List<LzhamStream>();
+            var decompParams = new DecompressionParameters { DictionarySize = 20, Flags = DecompressionFlags.OutputUnbuffered };
+            foreach (var stream in _archiveStreams)
+                lzhamStreams.Add(new LzhamStream(stream, decompParams, true));
+
+            var decompBlocks = ReadAndDecompressRawBlocks(lzhamStreams.ToArray(), _file.EntryBlocks);
+            foreach (var (rawBlock, block) in decompBlocks)
+            {
+                WriteRawBlock(basePath, rawBlock, block);
+            }
+
+            foreach (var stream in lzhamStreams)
+                stream.Close();
         }
 
         /// <summary>
@@ -101,6 +124,39 @@ namespace UnoVPKTool.VPK
             var targets = _file.EntryBlocks.Where(b => fileNames.Contains(Path.GetFileName(b.FilePath)));
             var decompBlocks = DecompressRawBlocks(ReadRawBlocks(_archiveStreams, targets));
             WriteRawBlocks(basePath, decompBlocks);
+        }
+    }
+
+    public sealed partial class Extractor
+    {
+        public static IEnumerable<(byte[], DirectoryEntryBlock)> ReadAndDecompressRawBlocks(LzhamStream[] archiveStreams, IEnumerable<DirectoryEntryBlock> blocks)
+        {
+            foreach (var block in blocks)
+            {
+                byte[] decmpBlock = new byte[block.TotalUncompressedSize];
+                ReadAndDecompressRawBlock(archiveStreams[block.ArchiveIndex], decmpBlock, block);
+                yield return (decmpBlock, block);
+            }
+        }
+
+        public static void ReadAndDecompressRawBlock(LzhamStream archiveStream, Span<byte> buffer, DirectoryEntryBlock block)
+        {
+            int offset = 0;
+            foreach (var entry in block.Entries)
+            {
+                var entrySlice = buffer.Slice(offset, (int)entry.UncompressedSize);
+                ReadAndDecompressRawEntry(archiveStream, entrySlice, entry);
+                offset += (int)entry.UncompressedSize;
+            }
+        }
+
+        public static void ReadAndDecompressRawEntry(LzhamStream archiveStream, Span<byte> buffer, DirectoryEntry entry)
+        {
+            archiveStream.Seek((long)entry.Offset, SeekOrigin.Begin);
+            if (entry.IsCompressed)
+                archiveStream.Read(buffer, (int)entry.CompressedSize);
+            else
+                archiveStream.BaseStream.Read(buffer);
         }
     }
 

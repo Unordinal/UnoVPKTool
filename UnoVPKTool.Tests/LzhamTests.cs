@@ -100,7 +100,7 @@ namespace UnoVPKTool.Tests
         [TestMethod]
         public void TestDecompressionAllVsBlockPerformance()
         {
-            const int Iterations = 5000;
+            const int Iterations = 800;
 
             byte[] buffer = new byte[TestRawDataBufferSize];
             var decompParams = new DecompressionParameters { DictionarySize = 20 };

@@ -5,7 +5,6 @@ using System.IO;
 using LzhamWrapper.Compression;
 using LzhamWrapper.Decompression;
 using LzhamWrapper.Exceptions;
-using Microsoft.Win32.SafeHandles;
 
 namespace LzhamWrapper
 {
@@ -191,67 +190,82 @@ namespace LzhamWrapper
             if (_decompressionHandle.IsInvalid) throw new LzhamException(string.Format(TmplReinitInvalidParams, "decompressor"));
         }
 
+        public override int Read(Span<byte> buffer)
+        {
+            // TODO: see if this works and if we can improve it. Potentially and likely broken rn.
+            return Read(buffer, buffer.Length);
+        }
+
+        public int Read(Span<byte> buffer, int compressedBytesCount)
+        {
+            // Check that this stream supports decompression.
+            CheckDecompressionSupported();
+            // We'll need to reinitialize if we have used this stream to read in the past.
+            if (_decompressionNeedsReinit) ReinitDecompression();
+            
+            uint totalBytesRead = 0; // The number of compressed bytes we've fed into the decompressor so far.
+            uint totalBytesReadIntoOutput = 0; // The number of decompressed bytes we've written to the output buffer.
+            uint totalBytesToRead = (uint)compressedBytesCount; // The number of compressed bytes to read before we're done.
+            uint bytesReadFromStream = 0;
+            bool finishReading;
+            DecompressStatus status = default;
+            do
+            {
+                do
+                {
+                    // If we got here and there's no bytes from the stream, let's break and get some.
+                    if (bytesReadFromStream == 0) break;
+
+                    ReadOnlySpan<byte> inputSpan = _inputBuffer.AsSpan()[_bufferOffset..];
+                    uint bytesToRead = Math.Min(totalBytesToRead, (uint)inputSpan.Length);
+
+                    nuint compressedBytes = bytesToRead; // The total amount of compressed bytes we want to read.
+                    nuint decompressedBytes = (uint)buffer.Length; // This is initially the max size of the output buffer, but will be set to the number of decompressed bytes output.
+                    finishReading = (totalBytesRead + bytesReadFromStream >= compressedBytesCount) || bytesReadFromStream == 0;
+
+                    status = Lzham.Decompress(_decompressionHandle, inputSpan, ref compressedBytes, buffer, ref decompressedBytes, finishReading);
+
+                    _bufferOffset += (int)compressedBytes;
+                    bytesReadFromStream -= (uint)compressedBytes;
+                    totalBytesRead += (uint)compressedBytes;
+                    totalBytesReadIntoOutput += (uint)decompressedBytes;
+
+                    buffer = buffer[(int)decompressedBytes..];
+                }
+                // While the decompressor has more output and we've not read in all of the requested bytes.
+                while (status == DecompressStatus.HasMoreOutput && totalBytesRead < totalBytesToRead);
+
+                // If we don't have any bytes, we'll try to read some into the input buffer. If we can't, we're done.
+                if (bytesReadFromStream == 0)
+                {
+                    bytesReadFromStream = (uint)_baseStream.Read(_inputBuffer); // Try to read in 'DefaultBufferSize' amount of bytes (4096).
+                    _bufferOffset = 0; // Reset offset.
+                }
+            }
+            // While the decompressor hasn't finished, we've not read in all of the requested bytes and there are more bytes to read.
+            while (status < DecompressStatus.FirstSuccessOrFailureCode && totalBytesRead < totalBytesToRead && bytesReadFromStream > 0);
+
+            // If we're here and the status isn't Success, something went wrong.
+            if (status != DecompressStatus.Success)
+                throw new LzhamException(string.Format(TmplFailedMsg, "Decompression", status));
+
+            // After each block read, we need to reinitialize. We could just do that here... but if the caller is possibly not gonna read again, why waste the time?
+            _decompressionNeedsReinit = true;
+            return (int)totalBytesReadIntoOutput;
+        }
+
         /// <summary>
         /// Reads a sequence of compressed bytes from the current stream and advances the position within the stream by the number of bytes read.
         /// </summary>
         /// <param name="buffer">
         ///     An array of bytes. When this method returns, the buffer contains the specified byte array with the values between <paramref name="offset"/>
-        ///     and (<paramref name="offset"/> + <paramref name="count"/> - 1) replaced by the bytes read and decompressed from the current source.</param>
+        ///     and (<paramref name="offset"/> + <paramref name="compressedBytesCount"/> - 1) replaced by the bytes read and decompressed from the current source.</param>
         /// <param name="offset"><inheritdoc path="//param[2]"/></param>
-        /// <param name="count"><inheritdoc path="//param[3]"/></param>
+        /// <param name="compressedBytesCount"><inheritdoc path="//param[3]"/></param>
         /// <returns>The total number of bytes that were decompressed.</returns>
-        public override int Read(byte[] buffer, int offset, int count)
+        public override int Read(byte[] buffer, int offset, int compressedBytesCount)
         {
-            if (buffer is null) throw new ArgumentNullException(nameof(buffer));
-            if (count < 0) throw new ArgumentOutOfRangeException(nameof(count));
-            if (offset < 0 || (buffer.Length - offset < count)) throw new ArgumentOutOfRangeException(nameof(offset));
-
-            CheckDecompressionSupported();
-            if (_decompressionNeedsReinit) ReinitDecompression();
-
-            int totalBytesRead = 0;
-            int totalDecompressedBytes = 0;
-            int bytesLeftFromStream = 0;
-            bool finishReading = false;
-            _bufferOffset = 0;
-            DecompressStatus status;
-            do
-            {
-                if (!finishReading)
-                {
-                    bytesLeftFromStream = _baseStream.Read(_inputBuffer, 0, count);
-                    _bufferOffset = 0;
-                }
-                finishReading = finishReading || bytesLeftFromStream == 0;
-
-                do
-                {
-                    IntPtr compressedBytesLength = new IntPtr(bytesLeftFromStream); // Equal to the number of bytes we have read from the stream.
-                    IntPtr outputBufferLength = new IntPtr(_outputBuffer.Length);
-
-                    status = Lzham.Decompress(_decompressionHandle, _inputBuffer, ref compressedBytesLength, _bufferOffset, _outputBuffer, ref outputBufferLength, 0, finishReading);
-
-                    int decompressedBytesWritten = outputBufferLength.ToInt32();
-                    Array.Copy(_outputBuffer, 0, buffer, offset, decompressedBytesWritten);
-                    totalDecompressedBytes += decompressedBytesWritten;
-                    offset += decompressedBytesWritten;
-
-                    int compressedBytesRead = compressedBytesLength.ToInt32();
-                    _bufferOffset += compressedBytesRead; // Increment offset in compressed bytes buffer by number of bytes read from it
-                    totalBytesRead += compressedBytesRead;
-                    bytesLeftFromStream -= compressedBytesRead;
-                }
-                while (status == DecompressStatus.HasMoreOutput && totalBytesRead < count);
-            }
-            while (status < DecompressStatus.FirstSuccessOrFailureCode && totalBytesRead < count && bytesLeftFromStream > 0);
-
-            if (status != DecompressStatus.Success)
-            {
-                throw new LzhamException(string.Format(TmplFailedMsg, "Decompression", status));
-            }
-
-            _decompressionNeedsReinit = true;
-            return totalDecompressedBytes;
+            return Read(buffer.AsSpan()[offset..], compressedBytesCount);
         }
 
         public override void Write(ReadOnlySpan<byte> buffer)
@@ -266,7 +280,7 @@ namespace LzhamWrapper
 
         public void Write(byte[] buffer, int offset, int count, bool finishing)
         {
-            if (buffer is null) throw new ArgumentNullException(nameof(buffer));
+            /*if (buffer is null) throw new ArgumentNullException(nameof(buffer));
             if (count < 0) throw new ArgumentOutOfRangeException(nameof(count));
             if (offset < 0 || (buffer.Length - offset < count)) throw new ArgumentOutOfRangeException(nameof(offset));
 
@@ -292,7 +306,7 @@ namespace LzhamWrapper
 
                     Debug.WriteLine($"Input (l {decompressedBytesLength.ToInt32()}, o {offset}): {string.Join(' ', buffer)}");
 
-                    status = Lzham.Compress(_compressionHandle, buffer, ref decompressedBytesLength, offset, _outputBuffer, ref outputBufferLength, 0, finishWriting);
+                    status = Lzham.Compress(_compressionHandle, buffer, ref decompressedBytesLength, _outputBuffer, ref outputBufferLength, finishWriting);
 
                     Debug.WriteLine($"Status: {status}");
                     Debug.WriteLine($"Output (l {outputBufferLength.ToInt32()}): {string.Join(' ', _outputBuffer[0..(outputBufferLength.ToInt32())])}");
@@ -315,7 +329,7 @@ namespace LzhamWrapper
                 throw new LzhamException(string.Format(TmplFailedMsg, "Compression", status));
             }
 
-            _compressionNeedsReinit = true;
+            _compressionNeedsReinit = true;*/
         }
 
         /// <summary>

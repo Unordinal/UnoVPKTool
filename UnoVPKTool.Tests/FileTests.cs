@@ -5,6 +5,7 @@ using System.IO;
 using System.IO.MemoryMappedFiles;
 using System.Linq;
 using System.Threading.Tasks;
+using LzhamWrapper;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using UnoVPKTool.VPK;
 
@@ -93,6 +94,17 @@ namespace UnoVPKTool.Tests
         }
         
         [TestMethod]
+        public void TestExtractorExtractAllStream()
+        {
+            var file = new DirectoryFile(TestFile);
+            var fullDir = Path.Combine(ExtractPath, Path.GetFileNameWithoutExtension(file.FilePath) + Path.DirectorySeparatorChar);
+            Directory.CreateDirectory(fullDir);
+
+            using var extractor = new Extractor(file);
+            extractor.ExtractAllStream(fullDir);
+        }
+
+        [TestMethod]
         public async Task TestExtractorExtractAllAsync()
         {
             var file = new DirectoryFile(TestFile);
@@ -115,10 +127,12 @@ namespace UnoVPKTool.Tests
                             entriesRead++;
                             Console.WriteLine($"Read: {entriesRead}/{entriesToRead}");
                             break;
+
                         case EntryOperation.ProcessType.Decompress:
                             entriesDecompressed++;
                             Console.WriteLine($"Decompressed: {entriesDecompressed}/{entriesToDecompress}");
                             break;
+
                         default:
                             break;
                     }
@@ -166,7 +180,7 @@ namespace UnoVPKTool.Tests
                 currFile++;
             }
         }
-        
+
         [TestMethod]
         public void TestExtractorAllFilesExtractAll()
         {
