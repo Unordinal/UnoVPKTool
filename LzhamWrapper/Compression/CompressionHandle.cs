@@ -4,11 +4,13 @@ namespace LzhamWrapper.Compression
 {
     public class CompressionHandle : SafeHandleZeroOrMinusOneIsInvalid
     {
+        public bool IsOpenAndValid => !IsClosed && !IsInvalid;
+
         public CompressionHandle() : base(true) { }
 
         public uint? Deinit()
         {
-            return (!IsClosed && !IsInvalid) ? Lzham.CompressDeinit(this) : null;
+            return (IsOpenAndValid) ? Lzham.CompressDeinit(this) : null;
         }
 
         protected override bool ReleaseHandle()
