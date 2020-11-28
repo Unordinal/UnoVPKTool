@@ -3,6 +3,9 @@ using LzhamWrapper.Exceptions;
 
 namespace LzhamWrapper.Compression
 {
+    /// <summary>
+    /// A wrapper for the LZHAM block-by-block compressor.
+    /// </summary>
     public class Compressor : IDisposable
     {
         private const string MsgHandleInitFailed = "Failed to initialize the compressor with the specified parameters.";
@@ -13,10 +16,10 @@ namespace LzhamWrapper.Compression
 
         public Compressor(CompressionParameters parameters)
         {
-            _handle = Lzham.CompressInit(parameters);
+            _handle = Lzham.Compression.Init(parameters);
             _parameters = parameters;
 
-            if (_handle.IsInvalid)
+            if (!_handle.IsOpenAndValid)
                 throw new LzhamException(MsgHandleInitFailed);
         }
 
@@ -27,12 +30,12 @@ namespace LzhamWrapper.Compression
         /// </summary>
         public virtual void Reinit(CompressionParameters parameters)
         {
-            var newHandle = Lzham.CompressInit(parameters);
+            var newHandle = Lzham.Compression.Init(parameters);
 
             _handle = newHandle;
             _needsReinit = false;
 
-            if (_handle.IsInvalid)
+            if (!_handle.IsOpenAndValid)
                 throw new LzhamException(MsgHandleInitFailed);
         }
 
@@ -43,77 +46,46 @@ namespace LzhamWrapper.Compression
         {
             ValidateHandle();
 
-            var newHandle = Lzham.CompressReinit(_handle);
+            var newHandle = Lzham.Compression.Reinit(_handle);
             if (_handle.DangerousGetHandle() != newHandle.DangerousGetHandle())
                 _handle.Deinit();
 
             _handle = newHandle;
             _needsReinit = false;
 
-            if (_handle.IsInvalid)
+            if (!_handle.IsOpenAndValid)
                 throw new LzhamException(MsgHandleInitFailed);
         }
 
-        /// <summary>
-        /// Compresses the bytes in <paramref name="input"/> and reads them into <paramref name="output"/>.
-        /// </summary>
-        /// <param name="input">The decompressed data to be compressed. Must be exactly the size of the decompressed data.</param>
-        /// <param name="output">The buffer to read the compressed data into.</param>
-        /// <returns>The size of the compressed data.</returns>
-        public virtual uint Compress(ReadOnlySpan<byte> input, Span<byte> output)
+        /// <inheritdoc cref="Lzham.Compression.Compress(CompressionHandle, ReadOnlySpan{byte}, Span{byte}, bool)"/>
+        ///
+        public virtual CompressStatus Compress(ReadOnlySpan<byte> input, Span<byte> output, bool noMoreInputBytes)
         {
-            if (_needsReinit) Reinit();
-
-            uint totalInput = 0;
-            uint totalOutput = 0;
-            CompressStatus status;
-            do
-            {
-                nuint inCount = (uint)input.Length;
-                nuint outCount = (uint)output.Length;
-                status = Lzham.Compress(_handle, input, ref inCount, output, ref outCount, true);
-
-                totalInput += (uint)inCount;
-                totalOutput += (uint)outCount;
-            }
-            while (status < CompressStatus.FirstSuccessOrFailureCode && totalInput < input.Length && totalOutput < output.Length);
-
-            if (status != CompressStatus.Success)
-                throw new LzhamException($"Compression failed: {status}");
-
-            _needsReinit = true;
-            return totalOutput;
+            return Compress(input, out _, output, out _, noMoreInputBytes);
         }
 
-        /// <summary>
-        /// Compresses the bytes in <paramref name="input"/> and reads them into <paramref name="output"/>, 
-        /// starting at the appropriate offsets and for the specified number of bytes for each.
-        /// </summary>
-        /// <param name="input">The decompressed data to be compressed.</param>
-        /// <param name="inputOffset">The offset to start at in <paramref name="input"/>.</param>
-        /// <param name="inputCount">The number of bytes to read.</param>
-        /// <param name="output">The buffer to read the compressed data into.</param>
-        /// <param name="outputOffset">The offset to start at in <paramref name="output"/>.</param>
-        /// <param name="inputCount">The number of bytes to write.</param>
-        /// <returns><inheritdoc cref="Compress(ReadOnlySpan{byte}, Span{byte})"/></returns>
-        public void Compress(byte[] input, int inputOffset, int inputCount, byte[] output, int outputOffset, int outputCount)
+        /// <inheritdoc cref="Lzham.Compression.Compress(CompressionHandle, ReadOnlySpan{byte}, out int, Span{byte}, out int, bool)"/>
+        ///
+        public virtual CompressStatus Compress(ReadOnlySpan<byte> input, out int bytesRead, Span<byte> output, out int bytesWritten, bool noMoreInputBytes)
         {
-            if (input is null)
-                throw new ArgumentNullException(nameof(input));
-            if (output is null)
-                throw new ArgumentNullException(nameof(output));
+            if (_needsReinit) Reinit();
+            if (noMoreInputBytes) _needsReinit = true;
 
-            if (inputCount < 0)
-                throw new ArgumentOutOfRangeException(nameof(inputCount));
-            if (outputCount < 0)
-                throw new ArgumentOutOfRangeException(nameof(outputCount));
+            return Lzham.Compression.Compress(_handle, input, out bytesRead, output, out bytesWritten, noMoreInputBytes);
+        }
 
-            if (inputOffset < 0 || input.Length - inputOffset < inputCount)
-                throw new ArgumentOutOfRangeException(nameof(inputOffset));
-            if (outputOffset < 0 || output.Length - outputOffset < outputOffset)
-                throw new ArgumentOutOfRangeException(nameof(outputOffset));
+        /// <inheritdoc cref="Lzham.Compression.CompressMemory(CompressionParameters, ReadOnlySpan{byte}, Span{byte}, ref uint)"/>
+        ///
+        public virtual CompressStatus CompressMemory(ReadOnlySpan<byte> input, Span<byte> output, ref uint adler32)
+        {
+            return CompressMemory(input, out _, output, out _, ref adler32);
+        }
 
-            Compress(input.AsSpan(inputOffset, inputCount), output.AsSpan(outputOffset, outputCount));
+        /// <inheritdoc cref="Lzham.Compression.CompressMemory(DecompressionParameters, ReadOnlySpan{byte}, out int, Span{byte}, out int, ref uint)"/>
+        ///
+        public virtual CompressStatus CompressMemory(ReadOnlySpan<byte> input, out int bytesRead, Span<byte> output, out int bytesWritten, ref uint adler32)
+        {
+            return Lzham.Compression.CompressMemory(_parameters, input, out bytesRead, output, out bytesWritten, ref adler32);
         }
 
         public void Dispose()
@@ -124,8 +96,8 @@ namespace LzhamWrapper.Compression
 
         private void ValidateHandle()
         {
-            if (_handle.IsClosed || _handle.IsInvalid)
-                throw new LzhamException("The handle to the compressor has been closed or is invalid.");
+            if (!_handle.IsOpenAndValid)
+                throw new ObjectDisposedException("The handle to the compressor has been closed or is invalid.");
         }
     }
 }

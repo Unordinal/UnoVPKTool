@@ -89,7 +89,7 @@ namespace LzhamWrapper
                     throw new ArgumentException(string.Format(TmplInitLacksSupport, "compression", "writing"), nameof(stream));
 
                 var compressionParametersRef = compressionParameters.Value;
-                _compressionHandle = Lzham.CompressInit(compressionParametersRef);
+                _compressionHandle = Lzham.Compression.Init(compressionParametersRef);
 
                 if (_compressionHandle.IsInvalid)
                     throw new ArgumentException(string.Format(TmplInitInvalidParams, "compression"), nameof(compressionParameters));
@@ -101,7 +101,7 @@ namespace LzhamWrapper
                     throw new ArgumentException(string.Format(TmplInitLacksSupport, "decompression", "reading"), nameof(stream));
 
                 _decompressionParameters = decompressionParameters.Value;
-                _decompressionHandle = Lzham.DecompressInit(_decompressionParameters);
+                _decompressionHandle = Lzham.Decompression.Init(_decompressionParameters);
 
                 if (_decompressionHandle.IsInvalid)
                     throw new ArgumentException(string.Format(TmplInitInvalidParams, "decompression"), nameof(decompressionParameters));
@@ -123,7 +123,7 @@ namespace LzhamWrapper
         public void Reinit(CompressionParameters compressionParameters)
         {
             CheckCompressionSupported();
-            var newHandle = Lzham.CompressInit(compressionParameters);
+            var newHandle = Lzham.Compression.Init(compressionParameters);
             if (_compressionHandle.DangerousGetHandle() != newHandle.DangerousGetHandle())
                 _compressionHandle.Deinit();
 
@@ -143,7 +143,7 @@ namespace LzhamWrapper
         {
             CheckDecompressionSupported();
 
-            var newHandle = Lzham.DecompressReinit(_decompressionHandle, decompressionParameters);
+            var newHandle = Lzham.Decompression.Reinit(_decompressionHandle, decompressionParameters);
             _decompressionHandle.Deinit();
             _decompressionHandle = newHandle;
             _decompressionParameters = decompressionParameters;
@@ -161,7 +161,7 @@ namespace LzhamWrapper
         {
             CheckCompressionSupported();
 
-            var newHandle = Lzham.CompressReinit(_compressionHandle);
+            var newHandle = Lzham.Compression.Reinit(_compressionHandle);
             if (_compressionHandle.DangerousGetHandle() != newHandle.DangerousGetHandle())
                 _compressionHandle.Deinit();
 
@@ -180,7 +180,7 @@ namespace LzhamWrapper
         {
             CheckDecompressionSupported();
 
-            var newHandle = Lzham.DecompressReinit(_decompressionHandle, _decompressionParameters);
+            var newHandle = Lzham.Decompression.Reinit(_decompressionHandle, _decompressionParameters);
             if (_decompressionHandle.DangerousGetHandle() != newHandle.DangerousGetHandle())
                 _decompressionHandle.Deinit();
 
@@ -205,7 +205,7 @@ namespace LzhamWrapper
             
             uint totalBytesRead = 0; // The number of compressed bytes we've fed into the decompressor so far.
             uint totalBytesReadIntoOutput = 0; // The number of decompressed bytes we've written to the output buffer.
-            uint totalBytesToRead = (uint)compressedBytesCount; // The number of compressed bytes to read before we're done.
+            int totalBytesToRead = compressedBytesCount; // The number of compressed bytes to read before we're done.
             uint bytesReadFromStream = 0;
             bool finishReading;
             DecompressStatus status = default;
@@ -217,20 +217,20 @@ namespace LzhamWrapper
                     if (bytesReadFromStream == 0) break;
 
                     ReadOnlySpan<byte> inputSpan = _inputBuffer.AsSpan()[_bufferOffset..];
-                    uint bytesToRead = Math.Min(totalBytesToRead, (uint)inputSpan.Length);
+                    int bytesToRead = Math.Min(totalBytesToRead, inputSpan.Length);
 
-                    nuint compressedBytes = bytesToRead; // The total amount of compressed bytes we want to read.
-                    nuint decompressedBytes = (uint)buffer.Length; // This is initially the max size of the output buffer, but will be set to the number of decompressed bytes output.
+                    int compressedBytes = bytesToRead; // The total amount of compressed bytes we want to read.
+                    int decompressedBytes = buffer.Length; // This is initially the max size of the output buffer, but will be set to the number of decompressed bytes output.
                     finishReading = (totalBytesRead + bytesReadFromStream >= compressedBytesCount) || bytesReadFromStream == 0;
 
-                    status = Lzham.Decompress(_decompressionHandle, inputSpan, ref compressedBytes, buffer, ref decompressedBytes, finishReading);
+                    status = Lzham.Decompression.Decompress(_decompressionHandle, inputSpan, out compressedBytes, buffer, out decompressedBytes, finishReading);
 
-                    _bufferOffset += (int)compressedBytes;
+                    _bufferOffset += compressedBytes;
                     bytesReadFromStream -= (uint)compressedBytes;
                     totalBytesRead += (uint)compressedBytes;
                     totalBytesReadIntoOutput += (uint)decompressedBytes;
 
-                    buffer = buffer[(int)decompressedBytes..];
+                    buffer = buffer[decompressedBytes..];
                 }
                 // While the decompressor has more output and we've not read in all of the requested bytes.
                 while (status == DecompressStatus.HasMoreOutput && totalBytesRead < totalBytesToRead);

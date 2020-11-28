@@ -22,7 +22,7 @@ namespace UnoVPKTool
             var parameters = new DecompressionParameters { DictionarySize = ApexDictSize, Flags = DecompressionFlags.OutputUnbuffered };
             parameters.Initialize();
 
-            var result = LzhamWrapper.Lzham.DecompressMemory(parameters, compressedBytes, ref compressedLength, 0, decompressedBytes, ref decompressedLength, 0, ref adler32);
+            var result = LzhamWrapper.Lzham.Decompression.DecompressMemory(parameters, compressedBytes, decompressedBytes, ref adler32);
             if (result != DecompressStatus.Success)
             {
                 throw new Exception("Lzham.DecompressMemory failed. Status: " + result.ToString());

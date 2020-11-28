@@ -9,17 +9,17 @@ namespace LzhamWrapper.Decompression
     public class Decompressor : IDisposable
     {
         private const string MsgHandleInitFailed = "Failed to initialize the decompressor with the specified parameters.";
-        
+
         protected DecompressionHandle _handle;
         protected DecompressionParameters _parameters;
         private bool _needsReinit = false;
 
         public Decompressor(DecompressionParameters parameters)
         {
-            _handle = Lzham.DecompressInit(parameters);
+            _handle = Lzham.Decompression.Init(parameters);
             _parameters = parameters;
 
-            if (_handle.IsInvalid)
+            if (!_handle.IsOpenAndValid)
                 throw new LzhamException(MsgHandleInitFailed);
         }
 
@@ -30,14 +30,14 @@ namespace LzhamWrapper.Decompression
         {
             ValidateHandle();
 
-            var newHandle = Lzham.DecompressReinit(_handle, parameters);
+            var newHandle = Lzham.Decompression.Reinit(_handle, parameters);
             if (_handle.DangerousGetHandle() != newHandle.DangerousGetHandle())
                 _handle.Deinit();
 
             _handle = newHandle;
             _needsReinit = false;
 
-            if (_handle.IsInvalid)
+            if (!_handle.IsOpenAndValid)
                 throw new LzhamException(MsgHandleInitFailed);
         }
 
@@ -49,67 +49,35 @@ namespace LzhamWrapper.Decompression
             Reinit(_parameters);
         }
 
-        /// <summary>
-        /// Decompresses the bytes in <paramref name="input"/> and reads them into <paramref name="output"/>.
-        /// </summary>
-        /// <param name="input">The compressed data to be decompressed. Must be exactly the size of the compressed data.</param>
-        /// <param name="output">The buffer to read the decompressed data into.</param>
-        /// <returns>The size of the decompressed data.</returns>
-        public virtual uint Decompress(ReadOnlySpan<byte> input, Span<byte> output)
+        /// <inheritdoc cref="Lzham.Decompression.Decompress(DecompressionHandle, ReadOnlySpan{byte}, Span{byte}, bool)"/>
+        ///
+        public virtual DecompressStatus Decompress(ReadOnlySpan<byte> input, Span<byte> output, bool noMoreInputBytes)
         {
-            if (_needsReinit) Reinit();
-
-            uint totalInput = 0;
-            uint totalOutput = 0;
-            DecompressStatus status;
-            // Could be more efficient if I did buffers and used the 'noMoreInputBytesFlag' value properly, but eh.
-            do
-            {
-                nuint inCount = (uint)input.Length;
-                nuint outCount = (uint)output.Length;
-                status = Lzham.Decompress(_handle, input, ref inCount, output, ref outCount, true);
-
-                totalInput += (uint)inCount;
-                totalOutput += (uint)outCount;
-            }
-            while (status < DecompressStatus.FirstSuccessOrFailureCode && totalInput < input.Length && totalOutput < output.Length);
-
-            if (status != DecompressStatus.Success)
-                throw new LzhamException($"Decompression failed: {status}");
-
-            _needsReinit = true;
-            return totalOutput;
+            return Decompress(input, out _, output, out _, noMoreInputBytes);
         }
 
-        /// <summary>
-        /// Decompresses the bytes in <paramref name="input"/> and reads them into <paramref name="output"/>, 
-        /// starting at the appropriate offsets and for the specified number of bytes for each.
-        /// </summary>
-        /// <param name="input">The compressed data to be decompressed. Must be exactly the size of the compressed data.</param>
-        /// <param name="inputOffset">The offset to start at in <paramref name="input"/>.</param>
-        /// <param name="inputCount">The number of bytes to read.</param>
-        /// <param name="output">The buffer to read the decompressed data into.</param>
-        /// <param name="outputOffset">The offset to start at in <paramref name="output"/>.</param>
-        /// <param name="inputCount">The number of bytes to write.</param>
-        /// <returns><inheritdoc cref="Decompress(ReadOnlySpan{byte}, Span{byte})"/></returns>
-        public void Decompress(byte[] input, int inputOffset, int inputCount, byte[] output, int outputOffset, int outputCount)
+        /// <inheritdoc cref="Lzham.Decompression.Decompress(DecompressionHandle, ReadOnlySpan{byte}, out int, Span{byte}, out int, bool)"/>
+        ///
+        public virtual DecompressStatus Decompress(ReadOnlySpan<byte> input, out int bytesRead, Span<byte> output, out int bytesWritten, bool noMoreInputBytes)
         {
-            if (input is null)
-                throw new ArgumentNullException(nameof(input));
-            if (output is null)
-                throw new ArgumentNullException(nameof(output));
+            ValidateHandle();
+            if (_needsReinit) Reinit();
+            if (noMoreInputBytes) _needsReinit = true;
+            return Lzham.Decompression.Decompress(_handle, input, out bytesRead, output, out bytesWritten, noMoreInputBytes);
+        }
 
-            if (inputCount < 0)
-                throw new ArgumentOutOfRangeException(nameof(inputCount));
-            if (outputCount < 0)
-                throw new ArgumentOutOfRangeException(nameof(outputCount));
-
-            if (inputOffset < 0 || input.Length - inputOffset < inputCount)
-                throw new ArgumentOutOfRangeException(nameof(inputOffset));
-            if (outputOffset < 0 || output.Length - outputOffset < outputOffset)
-                throw new ArgumentOutOfRangeException(nameof(outputOffset));
-
-            Decompress(input.AsSpan(inputOffset, inputCount), output.AsSpan(outputOffset, outputCount));
+        /// <inheritdoc cref="Lzham.Decompression.DecompressMemory(DecompressionParameters, ReadOnlySpan{byte}, Span{byte}, ref uint)"/>
+        ///
+        public virtual DecompressStatus DecompressMemory(ReadOnlySpan<byte> input, Span<byte> output, ref uint adler32)
+        {
+            return DecompressMemory(input, out _, output, out _, ref adler32);
+        }
+        
+        /// <inheritdoc cref="Lzham.Decompression.DecompressMemory(DecompressionParameters, ReadOnlySpan{byte}, out int, Span{byte}, out int, ref uint)"/>
+        ///
+        public virtual DecompressStatus DecompressMemory(ReadOnlySpan<byte> input, out int bytesRead, Span<byte> output, out int bytesWritten, ref uint adler32)
+        {
+            return Lzham.Decompression.DecompressMemory(_parameters, input, out bytesRead, output, out bytesWritten, ref adler32);
         }
 
         public void Dispose()
@@ -120,8 +88,8 @@ namespace LzhamWrapper.Decompression
 
         private void ValidateHandle()
         {
-            if (_handle.IsClosed || _handle.IsInvalid)
-                throw new LzhamException("The handle to the decompressor has been closed or is invalid.");
+            if (!_handle.IsOpenAndValid)
+                throw new ObjectDisposedException("The handle to the decompressor has been closed or is invalid.");
         }
     }
 }

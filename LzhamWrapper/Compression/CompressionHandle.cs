@@ -10,7 +10,7 @@ namespace LzhamWrapper.Compression
 
         public uint? Deinit()
         {
-            return (IsOpenAndValid) ? Lzham.CompressDeinit(this) : null;
+            return IsOpenAndValid ? Lzham.Compression.Deinit(this) : null;
         }
 
         protected override bool ReleaseHandle()
